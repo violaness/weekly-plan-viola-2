@@ -76,9 +76,9 @@
   @media (max-width: 700px) { .top-row { grid-template-columns: 1fr; } }
 
   /* Habits grid */
-  .habit-grid-head { display: grid; grid-template-columns: 1fr repeat(7, 30px); gap: 3px; margin-bottom: 4px; }
+  .habit-grid-head { display: grid; grid-template-columns: 22px 1fr repeat(7, 30px) 22px; gap: 3px; margin-bottom: 4px; }
   .habit-grid-head span { text-align: center; font-size: 0.62rem; font-weight: 700; color: var(--muted); }
-  .habit-row { display: grid; grid-template-columns: 1fr repeat(7, 30px); gap: 3px; align-items: center; padding: 5px 0; }
+  .habit-row { display: grid; grid-template-columns: 22px 1fr repeat(7, 30px) 22px; gap: 3px; align-items: center; padding: 5px 0; }
   .habit-row input.name {
     border: none; background: transparent; font-family: 'Special Elite', cursive; font-size: 0.82rem;
     color: var(--ink); width: 100%; padding: 3px 2px;
@@ -87,6 +87,13 @@
     width: 26px; height: 26px; border-radius: 7px; border: none; cursor: pointer;
     display: flex; align-items: center; justify-content: center; font-size: 0.8rem; color: transparent;
   }
+  .habit-reorder { display: flex; flex-direction: column; gap: 1px; }
+  .habit-reorder button {
+    background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.6rem;
+    line-height: 1; padding: 2px 0; width: 22px;
+  }
+  .habit-reorder button:disabled { opacity: 0.25; cursor: default; }
+  .habit-reorder button:hover:not(:disabled) { color: var(--ink); }
   .habit-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.85rem; padding: 2px 4px; }
   .add-row { display: flex; gap: 8px; margin-top: 10px; }
   .add-row input[type=text] {
@@ -165,6 +172,18 @@
   .day-pct { font-size: 0.68rem; color: var(--muted); text-align: right; }
 
   footer { text-align: center; color: var(--muted); font-size: 0.75rem; padding: 22px 16px 10px; }
+
+  /* Trends view */
+  .trend-row { margin-bottom: 16px; }
+  .trend-row-label { font-size: 0.82rem; margin-bottom: 6px; }
+  .trend-squares { display: flex; flex-wrap: wrap; gap: 3px; }
+  .trend-square {
+    width: 16px; height: 16px; border-radius: 4px; background: var(--line); flex-shrink: 0;
+  }
+  .trend-bars { display: flex; align-items: flex-end; gap: 4px; height: 60px; }
+  .trend-bar {
+    width: 16px; background: var(--coral); border-radius: 3px 3px 0 0; flex-shrink: 0; min-height: 2px;
+  }
 </style>
 </head>
 <body>
@@ -180,16 +199,18 @@
     <div class="week-nav-row">
       <input type="date" id="weekPicker" onchange="jumpToDate(this.value)">
       <button class="today-btn" onclick="jumpToday()">Today</button>
+      <button class="today-btn" onclick="toggleTrends()" id="trendsToggleBtn">View trends</button>
     </div>
   </div>
 </header>
 
 <main>
+  <div id="plannerView">
   <div class="top-row">
     <div class="card">
       <h2>Weekly Habits <span class="pct" id="habitsPct">0%</span></h2>
       <div class="habit-grid-head">
-        <span></span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+        <span></span><span></span><span>S</span><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span>
       </div>
       <div id="habitList"></div>
       <div class="add-row">
@@ -214,17 +235,35 @@
   </div>
 
   <div class="days-scroll" id="daysScroll"></div>
+  </div>
+
+  <div id="trendsView" style="display:none;">
+    <div class="card">
+      <h2>Trends <span class="pct">a glance across your weeks</span></h2>
+      <p style="font-size:0.8rem; color:var(--muted); margin:-4px 0 14px;">
+        No schedule here — just how each habit and your to-do list have looked week to week. Darker square = more of that habit checked that week.
+      </p>
+      <div id="trendsHabits"></div>
+      <div id="trendsTodoWrap" style="margin-top:22px;">
+        <div class="day-section-label" style="margin-bottom:8px;">To-do list completion by week</div>
+        <div id="trendsTodo"></div>
+      </div>
+      <div id="trendsEmpty" class="empty" style="display:none; text-align:center; padding:20px; color:var(--muted); font-size:0.82rem; font-style:italic;">
+        Nothing to show yet — trends will build up as you use the planner over a few weeks.
+      </div>
+    </div>
+  </div>
 </main>
 
 <footer>🎻 saved automatically on this device</footer>
 
 <script>
 const STORE_KEY = 'weekly_planner_v1';
-const DAY_NAMES = ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
-const DAY_SHORT = ['M','T','W','T','F','S','S'];
-const DAY_COLORS = ['var(--mon)','var(--tue)','var(--wed)','var(--thu)','var(--fri)','var(--sat)','var(--sun)'];
-const DAY_HEX    = ['#8AB640','#6B9E3D','#2F5C1A','#1C4A38','#123A5E','#29789E','#46C6E5'];
-const LIGHT_DAY_INDEXES = [0, 1, 6]; // Mon, Tue, Sun — light backgrounds need dark text for contrast
+const DAY_NAMES = ['Saturday','Sunday','Monday','Tuesday','Wednesday','Thursday','Friday'];
+const DAY_SHORT = ['S','S','M','T','W','T','F'];
+const DAY_COLORS = ['var(--sat)','var(--sun)','var(--mon)','var(--tue)','var(--wed)','var(--thu)','var(--fri)'];
+const DAY_HEX    = ['#29789E','#46C6E5','#8AB640','#6B9E3D','#2F5C1A','#1C4A38','#123A5E'];
+const LIGHT_DAY_INDEXES = [1, 2, 3]; // Sun, Mon, Tue — light backgrounds need dark text for contrast
 
 function loadState() {
   try {
@@ -234,17 +273,17 @@ function loadState() {
   return {
     habitNames: ['8hr+ sleep', 'morning walk', 'journal entry'],
     weeks: {},
-    currentWeekStart: toISO(getMonday(new Date()))
+    currentWeekStart: toISO(getSaturday(new Date()))
   };
 }
 let state = loadState();
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 
-function getMonday(d) {
+function getSaturday(d) {
   const date = new Date(d);
-  const day = date.getDay();
-  const diff = (day === 0 ? -6 : 1 - day);
-  date.setDate(date.getDate() + diff);
+  const day = date.getDay(); // 0=Sun..6=Sat
+  const diff = (day - 6 + 7) % 7; // days since the most recent Saturday
+  date.setDate(date.getDate() - diff);
   date.setHours(0,0,0,0);
   return date;
 }
@@ -290,12 +329,12 @@ function shiftWeek(dir) {
 }
 function jumpToDate(dateStr) {
   if (!dateStr) return;
-  state.currentWeekStart = toISO(getMonday(new Date(dateStr + 'T00:00:00')));
+  state.currentWeekStart = toISO(getSaturday(new Date(dateStr + 'T00:00:00')));
   save();
   renderAll();
 }
 function jumpToday() {
-  state.currentWeekStart = toISO(getMonday(new Date()));
+  state.currentWeekStart = toISO(getSaturday(new Date()));
   save();
   renderAll();
 }
@@ -314,6 +353,20 @@ function renderHabits() {
   state.habitNames.forEach((name, hi) => {
     const row = document.createElement('div');
     row.className = 'habit-row';
+
+    const reorder = document.createElement('div');
+    reorder.className = 'habit-reorder';
+    const upBtn = document.createElement('button');
+    upBtn.textContent = '▲';
+    upBtn.disabled = hi === 0;
+    upBtn.addEventListener('click', () => moveHabit(hi, -1));
+    const downBtn = document.createElement('button');
+    downBtn.textContent = '▼';
+    downBtn.disabled = hi === state.habitNames.length - 1;
+    downBtn.addEventListener('click', () => moveHabit(hi, 1));
+    reorder.appendChild(upBtn);
+    reorder.appendChild(downBtn);
+    row.appendChild(reorder);
 
     const input = document.createElement('input');
     input.className = 'name';
@@ -362,6 +415,15 @@ function renderHabits() {
   const pct = total ? Math.round((checked/total)*100) : 0;
   document.getElementById('habitsPct').textContent = pct + '%';
   document.getElementById('habitsFill').style.width = pct + '%';
+}
+
+function moveHabit(index, dir) {
+  const target = index + dir;
+  if (target < 0 || target >= state.habitNames.length) return;
+  const arr = state.habitNames;
+  [arr[index], arr[target]] = [arr[target], arr[index]];
+  save();
+  renderHabits();
 }
 
 function addHabit() {
@@ -541,6 +603,104 @@ function renderDays() {
     col.appendChild(body);
     scroll.appendChild(col);
   });
+}
+
+function toggleTrends() {
+  const planner = document.getElementById('plannerView');
+  const trends = document.getElementById('trendsView');
+  const btn = document.getElementById('trendsToggleBtn');
+  const showingTrends = trends.style.display !== 'none';
+  if (showingTrends) {
+    trends.style.display = 'none';
+    planner.style.display = '';
+    btn.textContent = 'View trends';
+  } else {
+    trends.style.display = '';
+    planner.style.display = 'none';
+    btn.textContent = 'Back to planner';
+    renderTrends();
+  }
+}
+
+function habitPctForWeek(weekKey, name) {
+  const wk = state.weeks[weekKey];
+  if (!wk || !wk.habitChecks[name]) return null;
+  const days = wk.habitChecks[name];
+  const done = days.filter(Boolean).length;
+  return Math.round((done / 7) * 100);
+}
+
+function shadeForPct(pct) {
+  if (pct === null) return 'var(--line)';
+  if (pct === 0) return 'var(--line)';
+  // interpolate lightness of the ink-green for a simple heat feel
+  const stops = [
+    [0,   '#e8f0e4'],
+    [25,  '#b8d19c'],
+    [50,  '#8ab640'],
+    [75,  '#4c7a2a'],
+    [100, '#1c4a2a']
+  ];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (pct <= stops[i+1][0]) return stops[i+1][1];
+  }
+  return stops[stops.length - 1][1];
+}
+
+function renderTrends() {
+  const weekKeys = Object.keys(state.weeks).sort();
+  const container = document.getElementById('trendsHabits');
+  const todoContainer = document.getElementById('trendsTodo');
+  const empty = document.getElementById('trendsEmpty');
+  container.innerHTML = '';
+  todoContainer.innerHTML = '';
+
+  if (weekKeys.length === 0) {
+    empty.style.display = 'block';
+    document.getElementById('trendsTodoWrap').style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  document.getElementById('trendsTodoWrap').style.display = '';
+
+  state.habitNames.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'trend-row';
+    const label = document.createElement('div');
+    label.className = 'trend-row-label';
+    label.textContent = name;
+    row.appendChild(label);
+
+    const squares = document.createElement('div');
+    squares.className = 'trend-squares';
+    weekKeys.forEach(wk => {
+      const pct = habitPctForWeek(wk, name);
+      const sq = document.createElement('div');
+      sq.className = 'trend-square';
+      sq.style.background = shadeForPct(pct);
+      const start = new Date(wk + 'T00:00:00');
+      sq.title = `Week of ${fmtShort(start)}: ${pct === null ? 'no data' : pct + '%'}`;
+      squares.appendChild(sq);
+    });
+    row.appendChild(squares);
+    container.appendChild(row);
+  });
+
+  const bars = document.createElement('div');
+  bars.className = 'trend-bars';
+  weekKeys.forEach(wk => {
+    const week = state.weeks[wk];
+    const total = week.todos.length;
+    const done = week.todos.filter(t => t.done).length;
+    const pct = total ? Math.round((done/total)*100) : 0;
+    const bar = document.createElement('div');
+    bar.className = 'trend-bar';
+    bar.style.height = Math.max(pct, 2) + '%';
+    const start = new Date(wk + 'T00:00:00');
+    bar.title = `Week of ${fmtShort(start)}: ${total ? pct + '%' : 'no to-dos that week'}`;
+    bars.appendChild(bar);
+  });
+  todoContainer.appendChild(bars);
 }
 
 function renderAll() {
