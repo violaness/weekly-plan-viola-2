@@ -45,6 +45,7 @@
   }
   header.app-header h1 { margin: 0 0 10px; font-size: 1.2rem; font-weight: 700; letter-spacing: 0.3px; }
   .week-nav { display: flex; flex-direction: column; gap: 10px; }
+  .picker-label { color: rgba(255,255,255,0.75); font-size: 0.72rem; }
   .week-nav-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .week-nav button {
     background: rgba(255,255,255,0.2); border: none; color: #fff; width: 32px; height: 32px;
@@ -271,8 +272,6 @@
       <input type="date" id="weekPicker" onchange="jumpToDate(this.value)">
       <button class="today-btn" onclick="jumpToday()">Today</button>
       <button class="today-btn" onclick="toggleTrends()" id="trendsToggleBtn">View trends</button>
-    </div>
-    <div class="week-nav-row">
       <button class="today-btn" onclick="sendTodaysList()">📤 Send today's list</button>
     </div>
   </div>
