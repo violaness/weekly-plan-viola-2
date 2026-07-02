@@ -79,7 +79,11 @@
   /* Habits grid */
   .habit-grid-head { display: grid; grid-template-columns: 22px 1fr repeat(7, 30px) 22px; gap: 3px; margin-bottom: 4px; }
   .habit-grid-head span { text-align: center; font-size: 0.62rem; font-weight: 700; color: var(--muted); }
-  .habit-row { display: grid; grid-template-columns: 22px 1fr repeat(7, 30px) 22px; gap: 3px; align-items: center; padding: 5px 0; }
+  .habit-row {
+    display: grid; grid-template-columns: 22px 1fr repeat(7, 30px) 22px; gap: 3px; align-items: center;
+    padding: 5px 4px; border-radius: 6px;
+  }
+  .habit-row:nth-child(even) { background: var(--line); }
   .habit-row input.name {
     border: none; background: transparent; font-family: 'Special Elite', cursive; font-size: 0.82rem;
     color: var(--ink); width: 100%; padding: 3px 2px;
@@ -127,6 +131,13 @@
   .copy-btn-wrap { margin-bottom: 8px; }
 
   /* Day columns */
+  .days-info-row { margin-bottom: 8px; }
+  .info-btn {
+    background: none; border: none; color: var(--muted); font-family: 'Special Elite', cursive;
+    font-size: 0.72rem; cursor: pointer; padding: 4px 6px 4px 0; opacity: 0.7;
+  }
+  .info-btn:hover { opacity: 1; color: var(--viola); }
+  .days-info-text { font-size: 0.75rem; color: var(--muted); margin: 2px 0 8px; }
   .days-scroll {
     display: flex; gap: 14px; overflow-x: auto; padding-bottom: 10px; scroll-snap-type: x proximity;
   }
@@ -297,7 +308,10 @@
     </div>
   </div>
 
-  <p style="font-size:0.75rem; color:var(--muted); margin:0 0 8px;">Yesterday through the next 6 days — always follows today, regardless of the week shown above. Unfinished tasks carry forward automatically.</p>
+  <div class="days-info-row">
+    <button class="info-btn" onclick="toggleDaysInfo()" id="daysInfoBtn" aria-label="How this section works">(?)</button>
+    <p class="days-info-text" id="daysInfoText" style="display:none;">Yesterday through the next 6 days — always follows today, regardless of the week shown above. Unfinished tasks carry forward automatically.</p>
+  </div>
   <div class="days-scroll" id="daysScroll"></div>
   </div>
 
@@ -537,7 +551,8 @@ function renderHabits() {
     wk.habitChecks[name].forEach((checked, di) => {
       const box = document.createElement('button');
       box.className = 'habit-box';
-      box.style.background = checked ? DAY_HEX[di] : '#f0ede6';
+      box.style.background = checked ? DAY_HEX[di] : '#ffffff';
+      box.style.border = checked ? 'none' : '1.5px solid var(--muted)';
       box.style.color = checked ? '#fff' : 'transparent';
       box.textContent = checked ? '✓' : '';
       box.addEventListener('click', () => {
@@ -770,6 +785,11 @@ function dayInfoForDate(dateObj) {
   const weekKey = toISO(getSaturday(dateObj));
   const dayIndex = Math.round((new Date(dateISO + 'T00:00:00') - new Date(weekKey + 'T00:00:00')) / 86400000);
   return { weekKey, dayIndex, weekday: dateObj.getDay() };
+}
+
+function toggleDaysInfo() {
+  const text = document.getElementById('daysInfoText');
+  text.style.display = text.style.display === 'none' ? 'block' : 'none';
 }
 
 function renderDays() {
