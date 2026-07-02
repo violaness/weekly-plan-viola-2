@@ -135,6 +135,13 @@
     min-width: 250px; flex-shrink: 0; scroll-snap-align: start; overflow: hidden;
   }
   .day-col.is-today { outline: 2px solid var(--ink); outline-offset: 1px; }
+  .day-col.is-peek { opacity: 0.85; border: 2px dashed var(--line); }
+  .day-col.is-past { opacity: 0.7; }
+  .carried-tag { font-size: 0.65rem; color: var(--muted); font-style: italic; margin: -2px 0 4px 34px; }
+  .peek-tag {
+    font-size: 0.6rem; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+    opacity: 0.85; margin-bottom: 2px;
+  }
   .day-head { padding: 12px 14px 10px; color: #fff; }
   .day-head .dname { font-weight: 700; font-size: 0.95rem; }
   .day-head .ddate { font-size: 0.72rem; opacity: 0.9; }
@@ -259,6 +266,7 @@
     </div>
   </div>
 
+  <p style="font-size:0.75rem; color:var(--muted); margin:0 0 8px;">Yesterday through the next 6 days — always follows today, regardless of the week shown above. Unfinished tasks carry forward automatically.</p>
   <div class="days-scroll" id="daysScroll"></div>
   </div>
 
@@ -595,114 +603,136 @@ function copyLastWeekTodos() {
   save(); renderTodos();
 }
 
+function buildDayColumn(weekObj, di, dname, dateObj, dayHex, isToday, isPeek, isPast, forceDarkText) {
+  const col = document.createElement('div');
+  col.className = 'day-col' + (isToday ? ' is-today' : '') + (isPeek ? ' is-peek' : '') + (isPast ? ' is-past' : '');
+
+  const head = document.createElement('div');
+  head.className = 'day-head';
+  head.style.background = dayHex;
+  head.style.color = forceDarkText ? 'var(--ink)' : '#fff';
+  const peekTag = isPeek ? '<div class="peek-tag">next week</div>' : (isPast ? '<div class="peek-tag">yesterday</div>' : '');
+  head.innerHTML = `${peekTag}<div class="dname">${dname}${isToday ? ' ★' : ''}</div><div class="ddate">${fmtShort(dateObj)}</div>`;
+  col.appendChild(head);
+
+  const body = document.createElement('div');
+  body.className = 'day-body';
+
+  const focusLabel = document.createElement('div');
+  focusLabel.className = 'day-section-label';
+  focusLabel.textContent = "Today's focus";
+  body.appendChild(focusLabel);
+  const focusInput = document.createElement('input');
+  focusInput.className = 'focus-input';
+  focusInput.type = 'text';
+  focusInput.placeholder = 'focus for the day…';
+  focusInput.value = weekObj.focus[di];
+  focusInput.addEventListener('change', () => { weekObj.focus[di] = focusInput.value; save(); });
+  body.appendChild(focusInput);
+
+  const evLabel = document.createElement('div');
+  evLabel.className = 'day-section-label';
+  evLabel.textContent = 'Events';
+  body.appendChild(evLabel);
+  weekObj.events[di].forEach((ev, ei) => {
+    const row = document.createElement('div');
+    row.className = 'event-item';
+    const time = document.createElement('input');
+    time.className = 'event-time'; time.type = 'text'; time.placeholder = 'time'; time.value = ev.time;
+    time.addEventListener('change', () => { ev.time = time.value; save(); });
+    const txt = document.createElement('input');
+    txt.className = 'event-text'; txt.type = 'text'; txt.placeholder = 'event'; txt.value = ev.text;
+    txt.addEventListener('change', () => { ev.text = txt.value; save(); });
+    const del = document.createElement('button');
+    del.className = 'mini-del'; del.textContent = '✕';
+    del.addEventListener('click', () => { weekObj.events[di].splice(ei,1); save(); renderDays(); });
+    row.appendChild(time); row.appendChild(txt); row.appendChild(del);
+    body.appendChild(row);
+  });
+  const addEv = document.createElement('button');
+  addEv.className = 'mini-add'; addEv.textContent = '+ add event';
+  addEv.addEventListener('click', () => { weekObj.events[di].push({time:'', text:''}); save(); renderDays(); });
+  body.appendChild(addEv);
+
+  const taskLabel = document.createElement('div');
+  taskLabel.className = 'day-section-label';
+  taskLabel.textContent = 'Tasks';
+  body.appendChild(taskLabel);
+
+  const tTotal = weekObj.tasks[di].length;
+  const tDone = weekObj.tasks[di].filter(t => t.done).length;
+  const tPct = tTotal ? Math.round((tDone/tTotal)*100) : 0;
+  const prog = document.createElement('div');
+  prog.className = 'day-progress';
+  prog.innerHTML = `<div class="fill" style="width:${tPct}%; background:${dayHex};"></div>`;
+  body.appendChild(prog);
+  const pctLabel = document.createElement('div');
+  pctLabel.className = 'day-pct';
+  pctLabel.textContent = tPct + '%';
+  body.appendChild(pctLabel);
+
+  weekObj.tasks[di].forEach((t, ti) => {
+    const row = document.createElement('div');
+    row.className = 'task-item';
+    const box = document.createElement('div');
+    box.className = 'task-check';
+    box.style.background = t.done ? dayHex : '#fff';
+    box.style.borderColor = t.done ? dayHex : '';
+    box.style.color = t.done ? '#fff' : 'transparent';
+    box.textContent = t.done ? '✓' : '';
+    box.addEventListener('click', () => { t.done = !t.done; save(); renderDays(); });
+    const txt = document.createElement('input');
+    txt.className = 'task-text'; txt.type = 'text'; txt.value = t.text;
+    if (t.done) txt.style.textDecoration = 'line-through';
+    txt.style.color = t.done ? 'var(--muted)' : 'var(--ink)';
+    txt.addEventListener('change', () => { t.text = txt.value; save(); });
+    const del = document.createElement('button');
+    del.className = 'mini-del'; del.textContent = '✕';
+    del.addEventListener('click', () => { weekObj.tasks[di].splice(ti,1); save(); renderDays(); });
+    row.appendChild(box); row.appendChild(txt); row.appendChild(del);
+    body.appendChild(row);
+    if (t.carriedFrom) {
+      const tag = document.createElement('div');
+      tag.className = 'carried-tag';
+      tag.textContent = `↳ carried from ${t.carriedFrom}`;
+      body.appendChild(tag);
+    }
+  });
+  const addTask = document.createElement('button');
+  addTask.className = 'mini-add'; addTask.textContent = '+ add task';
+  addTask.addEventListener('click', () => { weekObj.tasks[di].push({text:'', done:false}); save(); renderDays(); });
+  body.appendChild(addTask);
+
+  col.appendChild(body);
+  return col;
+}
+
+const WEEKDAY_FULL = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const WEEKDAY_COLOR = [DAY_HEX[1], DAY_HEX[2], DAY_HEX[3], DAY_HEX[4], DAY_HEX[5], DAY_HEX[6], DAY_HEX[0]];
+const WEEKDAY_DARK_TEXT = [true, true, true, false, false, false, false];
+
+function dayInfoForDate(dateObj) {
+  const dateISO = toISO(dateObj);
+  const weekKey = toISO(getSaturday(dateObj));
+  const dayIndex = Math.round((new Date(dateISO + 'T00:00:00') - new Date(weekKey + 'T00:00:00')) / 86400000);
+  return { weekKey, dayIndex, weekday: dateObj.getDay() };
+}
+
 function renderDays() {
-  const wk = currentWeek();
   const scroll = document.getElementById('daysScroll');
   scroll.innerHTML = '';
   const today = new Date();
+  today.setHours(0,0,0,0);
 
-  DAY_NAMES.forEach((dname, di) => {
-    const dateObj = addDays(state.currentWeekStart, di);
-    const isToday = isSameDate(dateObj, today);
-
-    const col = document.createElement('div');
-    col.className = 'day-col' + (isToday ? ' is-today' : '');
-
-    const head = document.createElement('div');
-    head.className = 'day-head';
-    head.style.background = DAY_HEX[di];
-    head.style.color = LIGHT_DAY_INDEXES.includes(di) ? 'var(--ink)' : '#fff';
-    head.innerHTML = `<div class="dname">${dname}${isToday ? ' ★' : ''}</div><div class="ddate">${fmtShort(dateObj)}</div>`;
-    col.appendChild(head);
-
-    const body = document.createElement('div');
-    body.className = 'day-body';
-
-    // Today's focus
-    const focusLabel = document.createElement('div');
-    focusLabel.className = 'day-section-label';
-    focusLabel.textContent = "Today's focus";
-    body.appendChild(focusLabel);
-    const focusInput = document.createElement('input');
-    focusInput.className = 'focus-input';
-    focusInput.type = 'text';
-    focusInput.placeholder = 'focus for the day…';
-    focusInput.value = wk.focus[di];
-    focusInput.addEventListener('change', () => { wk.focus[di] = focusInput.value; save(); });
-    body.appendChild(focusInput);
-
-    // Events
-    const evLabel = document.createElement('div');
-    evLabel.className = 'day-section-label';
-    evLabel.textContent = 'Events';
-    body.appendChild(evLabel);
-    wk.events[di].forEach((ev, ei) => {
-      const row = document.createElement('div');
-      row.className = 'event-item';
-      const time = document.createElement('input');
-      time.className = 'event-time'; time.type = 'text'; time.placeholder = 'time'; time.value = ev.time;
-      time.addEventListener('change', () => { ev.time = time.value; save(); });
-      const txt = document.createElement('input');
-      txt.className = 'event-text'; txt.type = 'text'; txt.placeholder = 'event'; txt.value = ev.text;
-      txt.addEventListener('change', () => { ev.text = txt.value; save(); });
-      const del = document.createElement('button');
-      del.className = 'mini-del'; del.textContent = '✕';
-      del.addEventListener('click', () => { wk.events[di].splice(ei,1); save(); renderDays(); });
-      row.appendChild(time); row.appendChild(txt); row.appendChild(del);
-      body.appendChild(row);
-    });
-    const addEv = document.createElement('button');
-    addEv.className = 'mini-add'; addEv.textContent = '+ add event';
-    addEv.addEventListener('click', () => { wk.events[di].push({time:'', text:''}); save(); renderDays(); });
-    body.appendChild(addEv);
-
-    // Tasks
-    const taskLabel = document.createElement('div');
-    taskLabel.className = 'day-section-label';
-    taskLabel.textContent = 'Tasks';
-    body.appendChild(taskLabel);
-
-    const tTotal = wk.tasks[di].length;
-    const tDone = wk.tasks[di].filter(t => t.done).length;
-    const tPct = tTotal ? Math.round((tDone/tTotal)*100) : 0;
-    const prog = document.createElement('div');
-    prog.className = 'day-progress';
-    prog.innerHTML = `<div class="fill" style="width:${tPct}%; background:${DAY_HEX[di]};"></div>`;
-    body.appendChild(prog);
-    const pctLabel = document.createElement('div');
-    pctLabel.className = 'day-pct';
-    pctLabel.textContent = tPct + '%';
-    body.appendChild(pctLabel);
-
-    wk.tasks[di].forEach((t, ti) => {
-      const row = document.createElement('div');
-      row.className = 'task-item';
-      const box = document.createElement('div');
-      box.className = 'task-check' + (t.done ? '' : '');
-      box.style.background = t.done ? DAY_HEX[di] : '#fff';
-      box.style.borderColor = t.done ? DAY_HEX[di] : '';
-      box.style.color = t.done ? '#fff' : 'transparent';
-      box.textContent = t.done ? '✓' : '';
-      box.addEventListener('click', () => { t.done = !t.done; save(); renderDays(); });
-      const txt = document.createElement('input');
-      txt.className = 'task-text'; txt.type = 'text'; txt.value = t.text;
-      if (t.done) txt.style.textDecoration = 'line-through';
-      txt.style.color = t.done ? 'var(--muted)' : 'var(--ink)';
-      txt.addEventListener('change', () => { t.text = txt.value; save(); });
-      const del = document.createElement('button');
-      del.className = 'mini-del'; del.textContent = '✕';
-      del.addEventListener('click', () => { wk.tasks[di].splice(ti,1); save(); renderDays(); });
-      row.appendChild(box); row.appendChild(txt); row.appendChild(del);
-      body.appendChild(row);
-    });
-    const addTask = document.createElement('button');
-    addTask.className = 'mini-add'; addTask.textContent = '+ add task';
-    addTask.addEventListener('click', () => { wk.tasks[di].push({text:'', done:false}); save(); renderDays(); });
-    body.appendChild(addTask);
-
-    col.appendChild(body);
+  for (let offset = -1; offset <= 6; offset++) {
+    const dateObj = addDays(toISO(today), offset);
+    const { weekKey, dayIndex, weekday } = dayInfoForDate(dateObj);
+    const weekObj = ensureWeek(weekKey);
+    const isToday = offset === 0;
+    const isPast = offset < 0;
+    const col = buildDayColumn(weekObj, dayIndex, WEEKDAY_FULL[weekday], dateObj, WEEKDAY_COLOR[weekday], isToday, false, isPast, WEEKDAY_DARK_TEXT[weekday]);
     scroll.appendChild(col);
-  });
+  }
 }
 
 function toggleTrends() {
@@ -803,7 +833,35 @@ function renderTrends() {
   todoContainer.appendChild(bars);
 }
 
+function rollForwardTasks() {
+  const todayISO = toISO(new Date());
+  const todayWeekKey = toISO(getSaturday(new Date()));
+  const todayWk = ensureWeek(todayWeekKey);
+  const todayIndex = Math.round((new Date(todayISO + 'T00:00:00') - new Date(todayWeekKey + 'T00:00:00')) / 86400000);
+  let changed = false;
+
+  Object.keys(state.weeks).forEach(weekKey => {
+    const wk = state.weeks[weekKey];
+    for (let i = 0; i < 7; i++) {
+      const dateISO = toISO(addDays(weekKey, i));
+      if (dateISO < todayISO) {
+        const unfinished = wk.tasks[i].filter(t => !t.done);
+        if (unfinished.length) {
+          const dateObj = new Date(dateISO + 'T00:00:00');
+          unfinished.forEach(t => { if (!t.carriedFrom) t.carriedFrom = fmtShort(dateObj); });
+          todayWk.tasks[todayIndex] = todayWk.tasks[todayIndex].concat(unfinished);
+          wk.tasks[i] = wk.tasks[i].filter(t => t.done);
+          changed = true;
+        }
+      }
+    }
+  });
+
+  if (changed) save();
+}
+
 function renderAll() {
+  rollForwardTasks();
   renderWeekHeader();
   renderHabits();
   renderTodos();
