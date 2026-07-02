@@ -8,6 +8,7 @@
 <title>Violaness — Weekly Plan</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root {
     --teal:   #05270B;
@@ -315,6 +316,67 @@ function loadState() {
   };
 }
 let state = loadState();
+migrateToSaturdayWeeks();
+
+function migrateToSaturdayWeeks() {
+  const oldWeeks = state.weeks || {};
+  const newWeeks = {};
+
+  function ensureNewWeek(key) {
+    if (!newWeeks[key]) {
+      newWeeks[key] = {
+        habitChecks: {},
+        focus: ['','','','','','',''],
+        events: [[],[],[],[],[],[],[]],
+        tasks: [[],[],[],[],[],[],[]],
+        todos: []
+      };
+    }
+    return newWeeks[key];
+  }
+
+  Object.keys(oldWeeks).forEach(oldKey => {
+    const oldWeek = oldWeeks[oldKey];
+    const correctBase = toISO(getSaturday(new Date(oldKey + 'T00:00:00')));
+    const baseWeek = ensureNewWeek(correctBase);
+    if (oldWeek.todos && oldWeek.todos.length) {
+      baseWeek.todos = baseWeek.todos.concat(oldWeek.todos);
+    }
+
+    for (let i = 0; i < 7; i++) {
+      const calDate = addDays(oldKey, i);
+      const calISO = toISO(calDate);
+      const weekKeyForDay = toISO(getSaturday(calDate));
+      const dayIndex = Math.round((new Date(calISO + 'T00:00:00') - new Date(weekKeyForDay + 'T00:00:00')) / 86400000);
+      const w = ensureNewWeek(weekKeyForDay);
+      if (oldWeek.focus && oldWeek.focus[i]) w.focus[dayIndex] = oldWeek.focus[i];
+      if (oldWeek.events && oldWeek.events[i] && oldWeek.events[i].length) w.events[dayIndex] = oldWeek.events[i];
+      if (oldWeek.tasks && oldWeek.tasks[i] && oldWeek.tasks[i].length) w.tasks[dayIndex] = oldWeek.tasks[i];
+    }
+
+    if (oldWeek.habitChecks) {
+      Object.keys(oldWeek.habitChecks).forEach(name => {
+        const arr = oldWeek.habitChecks[name];
+        for (let i = 0; i < 7; i++) {
+          if (!arr[i]) continue;
+          const calDate = addDays(oldKey, i);
+          const calISO = toISO(calDate);
+          const weekKeyForDay = toISO(getSaturday(calDate));
+          const dayIndex = Math.round((new Date(calISO + 'T00:00:00') - new Date(weekKeyForDay + 'T00:00:00')) / 86400000);
+          const w = ensureNewWeek(weekKeyForDay);
+          if (!w.habitChecks[name]) w.habitChecks[name] = [false,false,false,false,false,false,false];
+          w.habitChecks[name][dayIndex] = true;
+        }
+      });
+    }
+  });
+
+  state.weeks = newWeeks;
+  if (state.currentWeekStart) {
+    state.currentWeekStart = toISO(getSaturday(new Date(state.currentWeekStart + 'T00:00:00')));
+  }
+  save();
+}
 function save() { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
 
 function getSaturday(d) {
@@ -794,59 +856,146 @@ function restoreFromBackup(file) {
   document.getElementById('restoreFileInput').value = '';
 }
 
-function sendTodaysList() {
+function hexToRgb(hex) {
+  hex = hex.replace('#', '');
+  return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+}
+
+function drawPdfSection(doc, x, y, width, title, accentHex, lines, checklist) {
+  const [r, g, b] = hexToRgb(accentHex);
+  const lineH = 22;
+  const padTop = 14, padBottom = 16, padX = 18;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  const titleH = 22;
+  const bodyH = lines.length ? lines.length * lineH : lineH;
+  const boxH = padTop + titleH + bodyH + padBottom;
+
+  // card background + colored left accent bar
+  doc.setFillColor(255, 255, 255);
+  doc.roundedRect(x, y, width, boxH, 8, 8, 'F');
+  doc.setFillColor(r, g, b);
+  doc.roundedRect(x, y, 6, boxH, 3, 3, 'F');
+  doc.setFillColor(r, g, b);
+  doc.rect(x + 3, y, 3, boxH, 'F');
+
+  doc.setTextColor(40, 40, 40);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.text(title, x + padX, y + padTop + 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(12);
+  let ty = y + padTop + titleH + 8;
+  if (!lines.length) {
+    doc.setTextColor(140, 140, 140);
+    doc.text('Nothing here today.', x + padX, ty);
+  } else {
+    lines.forEach(line => {
+      if (checklist) {
+        doc.setDrawColor(r, g, b);
+        doc.setLineWidth(1.2);
+        doc.roundedRect(x + padX, ty - 10, 12, 12, 2, 2, 'S');
+        doc.setTextColor(40, 40, 40);
+        doc.text(line, x + padX + 20, ty);
+      } else {
+        doc.setTextColor(40, 40, 40);
+        doc.text(line, x + padX, ty);
+      }
+      ty += lineH;
+    });
+  }
+  return y + boxH + 16;
+}
+
+function buildTodaysPdf() {
   const now = new Date();
   const weekStart = toISO(getSaturday(now));
   const wk = ensureWeek(weekStart);
   const start = new Date(weekStart + 'T00:00:00');
-  const todayIndex = Math.round((now.setHours(0,0,0,0) - start.setHours(0,0,0,0)) / 86400000);
+  const todayIndex = Math.round((new Date().setHours(0,0,0,0) - start.setHours(0,0,0,0)) / 86400000);
   const di = Math.max(0, Math.min(6, todayIndex));
+  const accent = DAY_HEX[di];
+  const darkText = LIGHT_DAY_INDEXES.includes(di);
 
-  const lines = [];
-  lines.push(`${DAY_NAMES[di]}, ${fmtShort(new Date())}`);
-  lines.push('');
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 36;
+  const width = pageW - margin * 2;
+
+  // page background
+  doc.setFillColor(244, 248, 242);
+  doc.rect(0, 0, pageW, doc.internal.pageSize.getHeight(), 'F');
+
+  // header band
+  const [hr, hg, hb] = hexToRgb(accent);
+  doc.setFillColor(hr, hg, hb);
+  doc.rect(0, 0, pageW, 96, 'F');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(24);
+  doc.setTextColor(darkText ? 20 : 255, darkText ? 20 : 255, darkText ? 20 : 255);
+  doc.text(DAY_NAMES[di], margin, 50);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(13);
+  doc.text(fmtShort(new Date()), margin, 74);
+
+  let y = 128;
 
   if (wk.focus[di]) {
-    lines.push(`Focus: ${wk.focus[di]}`);
-    lines.push('');
+    y = drawPdfSection(doc, margin, y, width, 'FOCUS', accent, [wk.focus[di]], false);
   }
 
   if (wk.events[di].length) {
-    lines.push('Events:');
-    wk.events[di].forEach(ev => {
-      const t = ev.time ? `${ev.time} — ` : '';
-      if (ev.text) lines.push(`- ${t}${ev.text}`);
-    });
-    lines.push('');
+    const evLines = wk.events[di].filter(e => e.text).map(e => e.time ? `${e.time} — ${e.text}` : e.text);
+    if (evLines.length) y = drawPdfSection(doc, margin, y, width, 'EVENTS', accent, evLines, false);
   }
 
-  const todaysTasks = wk.tasks[di].filter(t => !t.done);
+  const todaysTasks = wk.tasks[di].filter(t => !t.done && t.text).map(t => t.text);
   if (todaysTasks.length) {
-    lines.push("Today's tasks:");
-    todaysTasks.forEach(t => { if (t.text) lines.push(`- [ ] ${t.text}`); });
-    lines.push('');
+    y = drawPdfSection(doc, margin, y, width, "TODAY'S TASKS", accent, todaysTasks, true);
   }
 
-  const openTodos = wk.todos.filter(t => !t.done);
+  const openTodos = wk.todos.filter(t => !t.done).map(t => t.text);
   if (openTodos.length) {
-    lines.push("This week's to-do list:");
-    openTodos.forEach(t => lines.push(`- [ ] ${t.text}`));
-    lines.push('');
+    y = drawPdfSection(doc, margin, y, width, "THIS WEEK'S TO-DO LIST", accent, openTodos, true);
   }
 
-  if (lines.length <= 2) {
-    lines.push('Nothing scheduled for today — nice and clear.');
+  if (y === 128) {
+    y = drawPdfSection(doc, margin, y, width, 'TODAY', accent, ['Nothing scheduled — nice and clear.'], false);
   }
 
-  const body = lines.join('\n');
-  const title = `Today — ${DAY_NAMES[di]}`;
+  doc.setFont('helvetica', 'italic');
+  doc.setFontSize(10);
+  doc.setTextColor(140, 140, 140);
+  doc.text('Violaness — Weekly Plan', margin, doc.internal.pageSize.getHeight() - 24);
 
-  if (navigator.share) {
-    navigator.share({ title, text: body }).catch(() => {});
-  } else {
-    const mailto = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-    window.location.href = mailto;
+  return { doc, dayName: DAY_NAMES[di] };
+}
+
+async function sendTodaysList() {
+  const { doc, dayName } = buildTodaysPdf();
+  const blob = doc.output('blob');
+  const filename = `Today-${dayName}-${toISO(new Date())}.pdf`;
+  const file = new File([blob], filename, { type: 'application/pdf' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: `Today — ${dayName}` });
+      return;
+    } catch (err) {
+      // fall through to download if share was cancelled or failed
+    }
   }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 renderAll();
