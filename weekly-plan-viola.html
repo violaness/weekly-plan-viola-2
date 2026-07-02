@@ -184,6 +184,27 @@
   .trend-bar {
     width: 16px; background: var(--coral); border-radius: 3px 3px 0 0; flex-shrink: 0; min-height: 2px;
   }
+
+  /* Backup & restore */
+  .footer-link {
+    background: none; border: none; color: var(--viola); font-family: 'Special Elite', cursive;
+    font-size: 0.75rem; text-decoration: underline; cursor: pointer; padding: 6px 0;
+  }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(5,39,11,0.45); display: flex;
+    align-items: center; justify-content: center; z-index: 50; padding: 20px;
+  }
+  .modal-card {
+    background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 22px 20px; max-width: 380px; width: 100%;
+  }
+  .modal-card h3 { font-size: 1.1rem; margin: 0 0 10px; }
+  .modal-desc { font-size: 0.8rem; color: var(--muted); line-height: 1.5; margin: 0 0 16px; }
+  .modal-btn {
+    display: block; width: 100%; margin-bottom: 10px; height: 42px; font-size: 0.85rem;
+  }
+  .modal-btn.blue { background: var(--coral); }
+  .modal-btn.ghost { background: var(--cream); color: var(--muted); border: 1.5px solid var(--line); margin-bottom: 0; }
 </style>
 </head>
 <body>
@@ -200,6 +221,9 @@
       <input type="date" id="weekPicker" onchange="jumpToDate(this.value)">
       <button class="today-btn" onclick="jumpToday()">Today</button>
       <button class="today-btn" onclick="toggleTrends()" id="trendsToggleBtn">View trends</button>
+    </div>
+    <div class="week-nav-row">
+      <button class="today-btn" onclick="sendTodaysList()">📤 Send today's list</button>
     </div>
   </div>
 </header>
@@ -255,7 +279,21 @@
   </div>
 </main>
 
-<footer>🎻 saved automatically on this device</footer>
+<footer>
+  🎻 saved automatically on this device<br>
+  <button class="footer-link" onclick="openBackupModal()">Back up &amp; restore</button>
+</footer>
+
+<div id="backupOverlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeBackupModal()">
+  <div class="modal-card">
+    <h3>Back up &amp; restore</h3>
+    <p class="modal-desc">Back up saves a JSON file to your Downloads (or Files on iPad). Restore loads it back. Keep backups in iCloud Drive or Google Drive for safety.</p>
+    <button class="btn modal-btn" onclick="backupAllData()">💾 Back up all data</button>
+    <button class="btn modal-btn blue" onclick="document.getElementById('restoreFileInput').click()">📂 Restore from backup</button>
+    <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromBackup(this.files[0])">
+    <button class="btn modal-btn ghost" onclick="closeBackupModal()">Cancel</button>
+  </div>
+</div>
 
 <script>
 const STORE_KEY = 'weekly_planner_v1';
@@ -712,6 +750,104 @@ function renderAll() {
 
 document.getElementById('newHabitInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHabit(); });
 document.getElementById('newTodoInput').addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+
+function openBackupModal() {
+  document.getElementById('backupOverlay').style.display = 'flex';
+}
+function closeBackupModal() {
+  document.getElementById('backupOverlay').style.display = 'none';
+}
+function backupAllData() {
+  const dataStr = JSON.stringify(state, null, 2);
+  const blob = new Blob([dataStr], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const today = toISO(new Date());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `violaness-weekly-plan-backup-${today}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  closeBackupModal();
+}
+function restoreFromBackup(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (!parsed || typeof parsed !== 'object' || !parsed.weeks || !parsed.habitNames) {
+        alert('This file doesn\'t look like a valid backup for this planner.');
+        return;
+      }
+      state = parsed;
+      save();
+      renderAll();
+      closeBackupModal();
+      alert('Backup restored.');
+    } catch (err) {
+      alert('Could not read that file — make sure it\'s a backup exported from this planner.');
+    }
+  };
+  reader.readAsText(file);
+  document.getElementById('restoreFileInput').value = '';
+}
+
+function sendTodaysList() {
+  const now = new Date();
+  const weekStart = toISO(getSaturday(now));
+  const wk = ensureWeek(weekStart);
+  const start = new Date(weekStart + 'T00:00:00');
+  const todayIndex = Math.round((now.setHours(0,0,0,0) - start.setHours(0,0,0,0)) / 86400000);
+  const di = Math.max(0, Math.min(6, todayIndex));
+
+  const lines = [];
+  lines.push(`${DAY_NAMES[di]}, ${fmtShort(new Date())}`);
+  lines.push('');
+
+  if (wk.focus[di]) {
+    lines.push(`Focus: ${wk.focus[di]}`);
+    lines.push('');
+  }
+
+  if (wk.events[di].length) {
+    lines.push('Events:');
+    wk.events[di].forEach(ev => {
+      const t = ev.time ? `${ev.time} — ` : '';
+      if (ev.text) lines.push(`- ${t}${ev.text}`);
+    });
+    lines.push('');
+  }
+
+  const todaysTasks = wk.tasks[di].filter(t => !t.done);
+  if (todaysTasks.length) {
+    lines.push("Today's tasks:");
+    todaysTasks.forEach(t => { if (t.text) lines.push(`- [ ] ${t.text}`); });
+    lines.push('');
+  }
+
+  const openTodos = wk.todos.filter(t => !t.done);
+  if (openTodos.length) {
+    lines.push("This week's to-do list:");
+    openTodos.forEach(t => lines.push(`- [ ] ${t.text}`));
+    lines.push('');
+  }
+
+  if (lines.length <= 2) {
+    lines.push('Nothing scheduled for today — nice and clear.');
+  }
+
+  const body = lines.join('\n');
+  const title = `Today — ${DAY_NAMES[di]}`;
+
+  if (navigator.share) {
+    navigator.share({ title, text: body }).catch(() => {});
+  } else {
+    const mailto = `mailto:?subject=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailto;
+  }
+}
 
 renderAll();
 </script>
