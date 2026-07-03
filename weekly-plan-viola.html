@@ -208,12 +208,12 @@
 
   /* Carousel focus: the card sitting in the fixed center slot becomes the big, editable one */
   .day-col.is-focused {
-    opacity: 1; transform: scale(1); min-width: 320px; margin: 0 6px;
-    box-shadow: 0 8px 26px rgba(5,39,11,0.22); z-index: 3;
+    opacity: 1; transform: scale(1); min-width: 400px; margin: 0 10px;
+    box-shadow: 0 10px 30px rgba(5,39,11,0.24); z-index: 3;
   }
-  .day-col.is-focused .dname { font-size: 1.15rem; }
-  .day-col.is-focused .ddate { font-size: 0.82rem; }
-  .day-col.is-focused .focus-input { min-height: 150px; font-size: 1rem; line-height: 2em; }
+  .day-col.is-focused .dname { font-size: 1.3rem; }
+  .day-col.is-focused .ddate { font-size: 0.9rem; }
+  .day-col.is-focused .focus-input { min-height: 170px; font-size: 1.05rem; line-height: 2.1em; }
   .day-col.is-focused .event-time,
   .day-col.is-focused .event-text,
   .day-col.is-focused .task-text { font-size: 0.95rem; padding: 12px 10px; }
@@ -872,7 +872,7 @@ function attachDaysScrollListener() {
 
 function setDaysScrollEdgePadding() {
   const scroll = document.getElementById('daysScroll');
-  const approxFocusedWidth = 320;
+  const approxFocusedWidth = 400;
   const pad = Math.max(16, (scroll.clientWidth - approxFocusedWidth) / 2);
   scroll.style.paddingLeft = pad + 'px';
   scroll.style.paddingRight = pad + 'px';
