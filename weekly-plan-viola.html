@@ -146,12 +146,15 @@
   .info-btn:hover { opacity: 1; color: var(--viola); }
   .days-info-text { font-size: 0.75rem; color: var(--muted); margin: 2px 0 8px; }
   .days-scroll {
-    display: flex; gap: 14px; overflow-x: auto; padding-bottom: 10px; scroll-snap-type: x proximity;
-    align-items: flex-start;
+    display: flex; gap: 0; overflow-x: auto; overflow-y: visible; padding: 28px 0 26px;
+    scroll-snap-type: x mandatory; align-items: flex-start;
   }
   .day-col {
     background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow);
     min-width: 250px; flex-shrink: 0; scroll-snap-align: center; overflow: hidden;
+    position: relative; margin: 0 -14px; z-index: 1;
+    transition: transform 0.22s ease, opacity 0.22s ease, margin 0.22s ease, min-width 0.22s ease;
+    opacity: 0.65; transform: scale(0.88);
   }
   .day-col.is-today { outline: 2px solid var(--ink); outline-offset: 1px; }
   .day-col.is-peek { border: 2px dashed var(--line); }
@@ -203,13 +206,13 @@
   .day-progress .fill { height: 100%; transition: width 0.3s ease; }
   .day-pct { font-size: 0.68rem; color: var(--muted); text-align: right; }
 
-  /* Carousel focus: whichever card is scrolled to center becomes the big, editable one */
-  .day-col { transition: transform 0.22s ease, opacity 0.22s ease; opacity: 0.68; transform: scale(0.85); }
+  /* Carousel focus: the card sitting in the fixed center slot becomes the big, editable one */
   .day-col.is-focused {
-    opacity: 1; transform: scale(1.06); box-shadow: 0 6px 22px rgba(5,39,11,0.2); z-index: 2;
+    opacity: 1; transform: scale(1); min-width: 320px; margin: 0 6px;
+    box-shadow: 0 8px 26px rgba(5,39,11,0.22); z-index: 3;
   }
-  .day-col.is-focused .dname { font-size: 1.1rem; }
-  .day-col.is-focused .ddate { font-size: 0.8rem; }
+  .day-col.is-focused .dname { font-size: 1.15rem; }
+  .day-col.is-focused .ddate { font-size: 0.82rem; }
   .day-col.is-focused .focus-input { min-height: 150px; font-size: 1rem; line-height: 2em; }
   .day-col.is-focused .event-time,
   .day-col.is-focused .event-text,
@@ -818,12 +821,17 @@ function toggleDaysInfo() {
 
 let hasCenteredToday = false;
 
+function centerColumn(col, smooth) {
+  const scroll = document.getElementById('daysScroll');
+  if (!col) return;
+  const target = col.offsetLeft - (scroll.clientWidth - col.offsetWidth) / 2;
+  scroll.scrollTo({ left: Math.max(0, target), behavior: smooth ? 'smooth' : 'auto' });
+}
+
 function centerTodayColumn() {
   const scroll = document.getElementById('daysScroll');
   const todayCol = scroll.querySelector('.day-col.is-today');
-  if (!todayCol) return;
-  const target = todayCol.offsetLeft - (scroll.clientWidth - todayCol.offsetWidth) / 2;
-  scroll.scrollTo({ left: Math.max(0, target), behavior: 'auto' });
+  centerColumn(todayCol, false);
 }
 
 function updateFocusedCard() {
@@ -840,6 +848,7 @@ function updateFocusedCard() {
   });
   cols.forEach(col => col.classList.remove('is-focused'));
   if (closest) closest.classList.add('is-focused');
+  return closest;
 }
 
 let daysScrollListenerAttached = false;
@@ -848,11 +857,25 @@ function attachDaysScrollListener() {
   const scroll = document.getElementById('daysScroll');
   if (!scroll) return;
   let raf = null;
+  let settleTimeout = null;
   scroll.addEventListener('scroll', () => {
     if (raf) return;
     raf = requestAnimationFrame(() => { updateFocusedCard(); raf = null; });
+    clearTimeout(settleTimeout);
+    settleTimeout = setTimeout(() => {
+      const focused = scroll.querySelector('.day-col.is-focused');
+      if (focused) centerColumn(focused, true);
+    }, 130);
   });
   daysScrollListenerAttached = true;
+}
+
+function setDaysScrollEdgePadding() {
+  const scroll = document.getElementById('daysScroll');
+  const approxFocusedWidth = 320;
+  const pad = Math.max(16, (scroll.clientWidth - approxFocusedWidth) / 2);
+  scroll.style.paddingLeft = pad + 'px';
+  scroll.style.paddingRight = pad + 'px';
 }
 
 function renderDays() {
@@ -871,6 +894,7 @@ function renderDays() {
     scroll.appendChild(col);
   }
 
+  setDaysScrollEdgePadding();
   attachDaysScrollListener();
 
   if (!hasCenteredToday) {
