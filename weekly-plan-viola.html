@@ -139,6 +139,16 @@
 
   /* Day columns */
   .days-info-row { margin-bottom: 8px; }
+  .future-task-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .future-task-row input[type="date"] {
+    border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px;
+    font-family: 'Special Elite', cursive; font-size: 0.8rem; background: var(--cream); color: var(--ink);
+  }
+  .future-task-row input[type="text"] {
+    flex: 1; min-width: 140px; font-family: 'Special Elite', cursive; font-size: 0.82rem; padding: 8px 10px;
+    border: 1.5px solid var(--line); border-radius: 8px; background: var(--cream); color: var(--ink);
+  }
+  .future-task-confirm { font-size: 0.78rem; color: var(--viola); margin-top: 8px; }
   .info-btn {
     background: none; border: none; color: var(--muted); font-family: 'Special Elite', cursive;
     font-size: 0.72rem; cursor: pointer; padding: 4px 6px 4px 0; opacity: 0.7;
@@ -303,6 +313,17 @@
       </div>
       <div class="progress-bar"><div class="fill" id="todoFill" style="width:0%; background:var(--coral);"></div></div>
     </div>
+  </div>
+
+  <div class="card">
+    <h2>Add to a Future Day <span class="pct">no need to scroll ahead</span></h2>
+    <p style="font-size:0.78rem; color:var(--muted); margin:0 0 10px;">Note something down for a day that isn't on the strip yet — it'll be sitting there waiting when that day comes round.</p>
+    <div class="future-task-row">
+      <input type="date" id="futureTaskDate">
+      <input type="text" id="futureTaskInput" placeholder="e.g. Invoices">
+      <button class="btn" onclick="addFutureTask()">Add</button>
+    </div>
+    <div id="futureTaskConfirm" class="future-task-confirm" style="display:none;"></div>
   </div>
 
   <div class="days-info-row">
@@ -814,6 +835,35 @@ function dayInfoForDate(dateObj) {
   return { weekKey, dayIndex, weekday: dateObj.getDay() };
 }
 
+function addFutureTask() {
+  const dateInput = document.getElementById('futureTaskDate');
+  const textInput = document.getElementById('futureTaskInput');
+  const confirmEl = document.getElementById('futureTaskConfirm');
+  const dateVal = dateInput.value;
+  const text = textInput.value.trim();
+
+  if (!dateVal || !text) {
+    confirmEl.style.color = 'var(--muted)';
+    confirmEl.textContent = 'Pick a date and type something first.';
+    confirmEl.style.display = 'block';
+    return;
+  }
+
+  const dateObj = new Date(dateVal + 'T00:00:00');
+  const weekKey = toISO(getSaturday(dateObj));
+  const weekObj = ensureWeek(weekKey);
+  const dayIndex = Math.round((dateObj - new Date(weekKey + 'T00:00:00')) / 86400000);
+  weekObj.tasks[dayIndex].push({ text, done: false });
+  save();
+
+  confirmEl.style.color = 'var(--viola)';
+  confirmEl.textContent = `Added to ${fmtShort(dateObj)} — it'll be waiting there when that day comes round.`;
+  confirmEl.style.display = 'block';
+  textInput.value = '';
+
+  renderDays();
+}
+
 function toggleDaysInfo() {
   const text = document.getElementById('daysInfoText');
   text.style.display = text.style.display === 'none' ? 'block' : 'none';
@@ -1043,6 +1093,7 @@ function renderAll() {
 
 document.getElementById('newHabitInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHabit(); });
 document.getElementById('newTodoInput').addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
+document.getElementById('futureTaskInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFutureTask(); });
 
 function openBackupModal() {
   document.getElementById('backupOverlay').style.display = 'flex';
