@@ -317,11 +317,19 @@
   .idea-canvas-wrap { flex: 1; overflow: auto; margin: 8px 12px 12px; border-radius: 10px; background: #fdfcf8; border: 1px solid var(--line); }
   .idea-canvas { position: relative; width: 1500px; height: 1100px; }
   .idea-note {
-    position: absolute; width: 160px; min-height: 110px; border-radius: 8px; padding: 10px 10px 8px;
+    position: absolute; border-radius: 8px; padding: 10px 10px 8px;
     box-shadow: 0 3px 8px rgba(5,39,11,0.18); cursor: grab; touch-action: none;
-    display: flex; flex-direction: column;
+    display: flex; flex-direction: column; overflow: hidden;
   }
   .idea-note.is-dragging { cursor: grabbing; z-index: 20; box-shadow: 0 8px 18px rgba(5,39,11,0.3); }
+  .idea-resize-handle {
+    position: absolute; right: 2px; bottom: 2px; width: 20px; height: 20px; cursor: nwse-resize;
+    touch-action: none; opacity: 0.55;
+  }
+  .idea-resize-handle::before {
+    content: ''; position: absolute; right: 3px; bottom: 3px; width: 10px; height: 10px;
+    border-right: 2px solid rgba(0,0,0,0.45); border-bottom: 2px solid rgba(0,0,0,0.45); border-radius: 0 0 3px 0;
+  }
   .idea-note-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; margin-bottom: 4px; }
   .idea-note-colors { display: flex; gap: 3px; }
   .idea-color-dot {
@@ -1288,6 +1296,7 @@ function addIdeaNote() {
     id: 'n' + Date.now() + Math.floor(Math.random() * 1000),
     text: '',
     x, y,
+    width: 160, height: 110,
     color: IDEA_COLORS[Math.floor(Math.random() * IDEA_COLORS.length)],
     rot: Math.round((Math.random() * 6 - 3) * 10) / 10
   };
@@ -1313,6 +1322,34 @@ function deleteIdeaNote(id) {
   if (idx > -1) notes.splice(idx, 1);
   save();
   renderIdeaBoard();
+}
+
+function makeNoteResizable(el, handle, note) {
+  let startX, startY, origW, origH, resizing = false;
+
+  handle.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    resizing = true;
+    startX = e.clientX; startY = e.clientY;
+    origW = note.width || 160; origH = note.height || 110;
+    handle.setPointerCapture(e.pointerId);
+  });
+
+  handle.addEventListener('pointermove', (e) => {
+    if (!resizing) return;
+    const newW = Math.min(420, Math.max(100, origW + (e.clientX - startX)));
+    const newH = Math.min(420, Math.max(90, origH + (e.clientY - startY)));
+    note.width = newW;
+    note.height = newH;
+    el.style.width = newW + 'px';
+    el.style.height = newH + 'px';
+  });
+
+  handle.addEventListener('pointerup', () => {
+    if (!resizing) return;
+    resizing = false;
+    save();
+  });
 }
 
 function makeNoteDraggable(el, note) {
@@ -1357,11 +1394,15 @@ function renderIdeaBoard() {
   }
 
   notes.forEach(note => {
+    if (!note.width) note.width = 160;
+    if (!note.height) note.height = 110;
     const el = document.createElement('div');
     el.className = 'idea-note';
     el.dataset.noteId = note.id;
     el.style.left = note.x + 'px';
     el.style.top = note.y + 'px';
+    el.style.width = note.width + 'px';
+    el.style.height = note.height + 'px';
     el.style.background = note.color;
     el.style.transform = `rotate(${note.rot}deg)`;
 
@@ -1392,7 +1433,13 @@ function renderIdeaBoard() {
     ta.addEventListener('pointerdown', (e) => e.stopPropagation());
     el.appendChild(ta);
 
+    const handle = document.createElement('div');
+    handle.className = 'idea-resize-handle';
+    handle.title = 'Drag to resize';
+    el.appendChild(handle);
+
     makeNoteDraggable(el, note);
+    makeNoteResizable(el, handle, note);
     canvas.appendChild(el);
   });
 }
