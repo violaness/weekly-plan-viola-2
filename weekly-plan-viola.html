@@ -9,6 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Special+Elite&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   :root {
     --teal:   #05270B;
@@ -316,6 +317,14 @@
   .idea-board-header h3 { margin: 0; font-size: 1.05rem; }
   .idea-header-btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .idea-header-btns .modal-btn { width: auto; margin: 0; padding: 0 14px; }
+  .idea-board-selector-row {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 0 16px 10px;
+  }
+  .idea-board-select {
+    font-family: 'Special Elite', cursive; font-size: 0.82rem; padding: 8px 10px; border-radius: 8px;
+    border: 1.5px solid var(--line); background: var(--cream); color: var(--ink); flex: 1; min-width: 160px;
+  }
+  .idea-board-selector-row .modal-btn { width: auto; margin: 0; padding: 0 12px; height: 36px; }
   .idea-canvas-wrap { flex: 1; overflow: auto; margin: 8px 12px 12px; border-radius: 10px; background: #fdfcf8; border: 1px solid var(--line); }
   .idea-canvas { position: relative; width: 1500px; height: 1100px; }
   .idea-note {
@@ -480,10 +489,19 @@
     <div class="idea-board-header">
       <h3>💭 Idea Board</h3>
       <div class="idea-header-btns">
-        <button class="btn modal-btn" onclick="addIdeaNote('text')">+ Text idea</button>
-        <button class="btn modal-btn blue" onclick="addIdeaNote('drawing')">✏️ Drawing idea</button>
         <button class="btn modal-btn ghost" onclick="closeIdeaBoard()">Close</button>
       </div>
+    </div>
+    <div class="idea-board-selector-row">
+      <select id="ideaBoardSelect" class="idea-board-select" onchange="switchIdeaBoard(this.value)"></select>
+      <button class="btn modal-btn" onclick="promptNewBoard()">+ New board</button>
+      <button class="btn modal-btn ghost" onclick="deleteCurrentBoard()">✕ Delete this board</button>
+    </div>
+    <div class="idea-header-btns" style="padding:0 16px 10px;">
+      <button class="btn modal-btn" onclick="addIdeaNote('text')">+ Text idea</button>
+      <button class="btn modal-btn blue" onclick="addIdeaNote('drawing')">✏️ Drawing idea</button>
+      <button class="btn modal-btn" style="background:var(--sat);" onclick="addIdeaNote('stave')">🎼 Stave idea</button>
+      <button class="btn modal-btn ghost" onclick="exportIdeaBoardPdf()">📄 Export PDF</button>
     </div>
     <p class="modal-desc" style="padding:0 16px;">Drop ideas anywhere, drag them wherever feels right, colour them however makes sense to you. Nothing here needs ordering.</p>
     <div class="idea-canvas-wrap" id="ideaCanvasWrap">
@@ -1280,18 +1298,131 @@ function getVaultEntries() {
 
 const IDEA_COLORS = ['#F9E79F', '#A9DFBF', '#AED6F1', '#F5B7B1', '#D7BDE2'];
 
+function ensureIdeaBoardsMigrated() {
+  if (!state.ideaBoards) {
+    state.ideaBoards = [];
+  }
+  if (state.ideaBoards.length === 0) {
+    const migratedNotes = state.ideaNotes || [];
+    const board = {
+      id: 'b' + Date.now(),
+      name: 'Board 1',
+      createdOn: toISO(new Date()),
+      notes: migratedNotes
+    };
+    state.ideaBoards.push(board);
+    state.currentIdeaBoardId = board.id;
+    delete state.ideaNotes;
+    save();
+  }
+  if (!state.currentIdeaBoardId || !state.ideaBoards.find(b => b.id === state.currentIdeaBoardId)) {
+    state.currentIdeaBoardId = state.ideaBoards[0].id;
+    save();
+  }
+}
+
+function getCurrentBoard() {
+  ensureIdeaBoardsMigrated();
+  return state.ideaBoards.find(b => b.id === state.currentIdeaBoardId);
+}
+
 function getIdeaNotes() {
-  if (!state.ideaNotes) state.ideaNotes = [];
-  return state.ideaNotes;
+  return getCurrentBoard().notes;
+}
+
+function renderBoardSelector() {
+  ensureIdeaBoardsMigrated();
+  const select = document.getElementById('ideaBoardSelect');
+  select.innerHTML = '';
+  state.ideaBoards.forEach(board => {
+    const opt = document.createElement('option');
+    opt.value = board.id;
+    const dateObj = new Date(board.createdOn + 'T00:00:00');
+    opt.textContent = `${board.name} — ${fmtShort(dateObj)}`;
+    if (board.id === state.currentIdeaBoardId) opt.selected = true;
+    select.appendChild(opt);
+  });
+}
+
+function switchIdeaBoard(id) {
+  state.currentIdeaBoardId = id;
+  save();
+  renderIdeaBoard();
+}
+
+function promptNewBoard() {
+  const name = window.prompt('Name this board:', '');
+  if (name === null) return;
+  const trimmed = name.trim() || `Board ${state.ideaBoards.length + 1}`;
+  const board = {
+    id: 'b' + Date.now(),
+    name: trimmed,
+    createdOn: toISO(new Date()),
+    notes: []
+  };
+  state.ideaBoards.push(board);
+  state.currentIdeaBoardId = board.id;
+  save();
+  renderBoardSelector();
+  renderIdeaBoard();
+}
+
+function deleteCurrentBoard() {
+  ensureIdeaBoardsMigrated();
+  if (state.ideaBoards.length <= 1) {
+    alert("This is your only board, so it can't be deleted — clear its notes individually instead if you'd like.");
+    return;
+  }
+  const board = getCurrentBoard();
+  const ok = window.confirm(`Delete "${board.name}" and everything on it? This can't be undone.`);
+  if (!ok) return;
+  state.ideaBoards = state.ideaBoards.filter(b => b.id !== board.id);
+  state.currentIdeaBoardId = state.ideaBoards[0].id;
+  save();
+  renderBoardSelector();
+  renderIdeaBoard();
 }
 
 function openIdeaBoard() {
   document.getElementById('ideaOverlay').style.display = 'flex';
+  renderBoardSelector();
   renderIdeaBoard();
 }
 
 function closeIdeaBoard() {
   document.getElementById('ideaOverlay').style.display = 'none';
+}
+
+async function exportIdeaBoardPdf() {
+  const board = getCurrentBoard();
+  const canvasEl = document.getElementById('ideaCanvas');
+  const rendered = await html2canvas(canvasEl, { backgroundColor: '#fdfcf8' });
+  const imgData = rendered.toDataURL('image/png');
+  const { jsPDF } = window.jspdf;
+  const w = rendered.width, h = rendered.height;
+  const doc = new jsPDF({ orientation: w > h ? 'landscape' : 'portrait', unit: 'px', format: [w, h] });
+  doc.addImage(imgData, 'PNG', 0, 0, w, h);
+
+  const safeName = board.name.replace(/[^a-z0-9]+/gi, '-').replace(/^-+|-+$/g, '') || 'idea-board';
+  const filename = `${safeName}-${toISO(new Date())}.pdf`;
+  const blob = doc.output('blob');
+  const file = new File([blob], filename, { type: 'application/pdf' });
+
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: board.name });
+      return;
+    } catch (err) {}
+  }
+
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
 
 function addIdeaNote(type) {
@@ -1301,7 +1432,7 @@ function addIdeaNote(type) {
   const y = wrap.scrollTop + 60 + Math.random() * 80;
   const note = {
     id: 'n' + Date.now() + Math.floor(Math.random() * 1000),
-    type: type === 'drawing' ? 'drawing' : 'text',
+    type: (type === 'drawing' || type === 'stave') ? type : 'text',
     text: '',
     strokes: [],
     x, y,
@@ -1336,6 +1467,22 @@ function deleteIdeaNote(id) {
 function redrawCanvas(canvasEl, note) {
   const ctx = canvasEl.getContext('2d');
   ctx.clearRect(0, 0, canvasEl.width, canvasEl.height);
+
+  if (note.type === 'stave') {
+    ctx.strokeStyle = 'rgba(43,43,43,0.5)';
+    ctx.lineWidth = 1;
+    const margin = canvasEl.width * 0.08;
+    const top = canvasEl.height * 0.3;
+    const spacing = (canvasEl.height * 0.4) / 4;
+    for (let i = 0; i < 5; i++) {
+      const y = top + i * spacing;
+      ctx.beginPath();
+      ctx.moveTo(margin, y);
+      ctx.lineTo(canvasEl.width - margin, y);
+      ctx.stroke();
+    }
+  }
+
   ctx.strokeStyle = '#2b2b2b';
   ctx.lineWidth = 2.5;
   ctx.lineJoin = 'round';
@@ -1418,8 +1565,7 @@ function makeNoteResizable(el, handle, note) {
     note.height = newSize;
     el.style.width = newSize + 'px';
     el.style.height = newSize + 'px';
-    if (note.type === 'drawing') {
-      const canvasEl = el.querySelector('.idea-note-canvas');
+    if (note.type === 'drawing' || note.type === 'stave') {
       if (canvasEl) {
         canvasEl.width = Math.round(newSize);
         canvasEl.height = Math.round(newSize * 0.8);
@@ -1511,7 +1657,7 @@ function renderIdeaBoard() {
     del.addEventListener('click', (e) => { e.stopPropagation(); deleteIdeaNote(note.id); });
     top.appendChild(del);
 
-    if (note.type === 'drawing') {
+    if (note.type === 'drawing' || note.type === 'stave') {
       const clear = document.createElement('button');
       clear.className = 'idea-note-del';
       clear.textContent = '⟲';
@@ -1527,7 +1673,7 @@ function renderIdeaBoard() {
 
     el.appendChild(top);
 
-    if (note.type === 'drawing') {
+    if (note.type === 'drawing' || note.type === 'stave') {
       const canvasEl = document.createElement('canvas');
       canvasEl.className = 'idea-note-canvas';
       el.appendChild(canvasEl);
