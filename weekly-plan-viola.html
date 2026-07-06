@@ -41,9 +41,15 @@
 
   header.app-header {
     background: var(--teal); color: #fff; padding: 12px 14px 10px;
-    position: sticky; top: 0; z-index: 10; box-shadow: var(--shadow);
+    position: sticky; top: 0; z-index: 10; box-shadow: var(--shadow); position: relative;
   }
   header.app-header h1 { margin: 0 0 6px; font-size: 1.05rem; font-weight: 700; letter-spacing: 0.3px; }
+  .vault-btn {
+    position: absolute; top: 10px; right: 12px; background: rgba(255,255,255,0.15); border: none;
+    color: rgba(255,255,255,0.7); width: 30px; height: 30px; border-radius: 50%; font-size: 0.95rem;
+    cursor: pointer; z-index: 11;
+  }
+  .vault-btn:hover { background: rgba(255,255,255,0.28); color: #fff; }
   .week-nav { display: flex; flex-direction: column; gap: 6px; }
   .picker-label { color: rgba(255,255,255,0.75); font-size: 0.72rem; }
   .week-nav-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
@@ -149,6 +155,17 @@
     border: 1.5px solid var(--line); border-radius: 8px; background: var(--cream); color: var(--ink);
   }
   .future-task-confirm { font-size: 0.78rem; color: var(--viola); margin-top: 8px; }
+  .collapsible-head { cursor: pointer; user-select: none; }
+  .collapse-arrow { font-size: 0.8rem; color: var(--muted); transition: transform 0.2s ease; }
+  .collapse-arrow.is-collapsed { transform: rotate(-90deg); }
+  .future-log-item {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 0.8rem;
+  }
+  .future-log-item:last-child { border-bottom: none; }
+  .future-log-item .log-main { color: var(--ink); }
+  .future-log-item .log-meta { color: var(--muted); font-size: 0.7rem; }
+  .future-log-empty { font-size: 0.78rem; color: var(--muted); font-style: italic; padding: 6px 0; }
   .info-btn {
     background: none; border: none; color: var(--muted); font-family: 'Special Elite', cursive;
     font-size: 0.72rem; cursor: pointer; padding: 4px 6px 4px 0; opacity: 0.7;
@@ -263,12 +280,34 @@
   }
   .modal-btn.blue { background: var(--coral); }
   .modal-btn.ghost { background: var(--cream); color: var(--muted); border: 1.5px solid var(--line); margin-bottom: 0; }
+
+  /* Private vault */
+  .vault-card { max-width: 420px; max-height: 82vh; overflow-y: auto; }
+  .vault-input {
+    width: 100%; border: 1.5px solid var(--line); border-radius: 8px; padding: 10px 12px;
+    font-family: 'Special Elite', cursive; font-size: 0.88rem; color: var(--ink);
+    background: var(--cream); resize: vertical; margin-bottom: 10px; line-height: 1.6em;
+  }
+  .vault-list { margin: 14px 0; }
+  .vault-entry {
+    border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px;
+    background: var(--cream); cursor: pointer;
+  }
+  .vault-entry-date { font-size: 0.68rem; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .vault-entry-text {
+    font-size: 0.85rem; color: var(--ink); margin-top: 6px; line-height: 1.5em;
+    filter: blur(5px); transition: filter 0.2s ease; user-select: none;
+  }
+  .vault-entry.is-revealed .vault-entry-text { filter: none; user-select: text; }
+  .vault-entry-del { background: none; border: none; color: var(--muted); font-size: 0.8rem; cursor: pointer; padding: 2px 4px; }
+  .vault-empty { font-size: 0.8rem; color: var(--muted); font-style: italic; text-align: center; padding: 10px 0; }
 </style>
 
 </head>
 <body>
 
 <header class="app-header">
+  <button class="vault-btn" onclick="openVault()" title="Private space" aria-label="Private space">🔒</button>
   <h1>Violaness — Weekly Plan</h1>
   <div class="week-nav">
     <div class="week-nav-row">
@@ -316,14 +355,22 @@
   </div>
 
   <div class="card">
-    <h2>Add to a Future Day <span class="pct">no need to scroll ahead</span></h2>
-    <p style="font-size:0.78rem; color:var(--muted); margin:0 0 10px;">Note something down for a day that isn't on the strip yet — it'll be sitting there waiting when that day comes round.</p>
-    <div class="future-task-row">
-      <input type="date" id="futureTaskDate">
-      <input type="text" id="futureTaskInput" placeholder="e.g. Invoices">
-      <button class="btn" onclick="addFutureTask()">Add</button>
+    <h2 class="collapsible-head" onclick="toggleFutureCard()">
+      Add to a Future Day
+      <span class="collapse-arrow" id="futureCardArrow">▾</span>
+    </h2>
+    <div id="futureCardBody">
+      <p style="font-size:0.78rem; color:var(--muted); margin:0 0 10px;">Note something down for a day that isn't on the strip yet — it'll be sitting there waiting when that day comes round.</p>
+      <div class="future-task-row">
+        <input type="date" id="futureTaskDate">
+        <input type="text" id="futureTaskInput" placeholder="e.g. Invoices">
+        <button class="btn" onclick="addFutureTask()">Add</button>
+      </div>
+      <div id="futureTaskConfirm" class="future-task-confirm" style="display:none;"></div>
+
+      <div class="day-section-label" style="margin-top:16px;">What you've added</div>
+      <div id="futureTaskLog"></div>
     </div>
-    <div id="futureTaskConfirm" class="future-task-confirm" style="display:none;"></div>
   </div>
 
   <div class="days-info-row">
@@ -364,6 +411,17 @@
     <button class="btn modal-btn blue" onclick="document.getElementById('restoreFileInput').click()">📂 Restore from backup</button>
     <input type="file" id="restoreFileInput" accept="application/json" style="display:none;" onchange="restoreFromBackup(this.files[0])">
     <button class="btn modal-btn ghost" onclick="closeBackupModal()">Cancel</button>
+  </div>
+</div>
+
+<div id="vaultOverlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeVault()">
+  <div class="modal-card vault-card">
+    <h3>🔒 Private space</h3>
+    <p class="modal-desc">Somewhere to put things down so they're not just sitting in your head. Nothing here needs sorting, and nothing needs doing about it today.</p>
+    <textarea id="vaultInput" class="vault-input" rows="3" placeholder="What's on your mind…"></textarea>
+    <button class="btn modal-btn" onclick="addVaultEntry()">Put this down</button>
+    <div id="vaultList" class="vault-list"></div>
+    <button class="btn modal-btn ghost" onclick="closeVault()">Close</button>
   </div>
 </div>
 
@@ -835,6 +893,50 @@ function dayInfoForDate(dateObj) {
   return { weekKey, dayIndex, weekday: dateObj.getDay() };
 }
 
+function getFutureTaskLog() {
+  if (!state.futureTaskLog) state.futureTaskLog = [];
+  return state.futureTaskLog;
+}
+
+function toggleFutureCard() {
+  const body = document.getElementById('futureCardBody');
+  const arrow = document.getElementById('futureCardArrow');
+  const collapsed = body.style.display === 'none';
+  body.style.display = collapsed ? '' : 'none';
+  arrow.classList.toggle('is-collapsed', !collapsed);
+  state.futureCardCollapsed = !collapsed;
+  save();
+}
+
+function renderFutureTaskLog() {
+  const list = document.getElementById('futureTaskLog');
+  if (!list) return;
+  const log = getFutureTaskLog();
+  list.innerHTML = '';
+  if (!log.length) {
+    list.innerHTML = '<div class="future-log-empty">Nothing added yet.</div>';
+    return;
+  }
+  log.forEach((entry, idx) => {
+    const row = document.createElement('div');
+    row.className = 'future-log-item';
+    const targetObj = new Date(entry.targetDate + 'T00:00:00');
+    const addedObj = new Date(entry.addedOn + 'T00:00:00');
+    row.innerHTML = `<div><div class="log-main">${entry.text}</div><div class="log-meta">for ${fmtShort(targetObj)} — added ${fmtShort(addedObj)}</div></div>`;
+    const del = document.createElement('button');
+    del.className = 'mini-del';
+    del.textContent = '✕';
+    del.title = 'Remove from this list (does not remove the task itself)';
+    del.addEventListener('click', () => {
+      log.splice(idx, 1);
+      save();
+      renderFutureTaskLog();
+    });
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+}
+
 function addFutureTask() {
   const dateInput = document.getElementById('futureTaskDate');
   const textInput = document.getElementById('futureTaskInput');
@@ -854,12 +956,15 @@ function addFutureTask() {
   const weekObj = ensureWeek(weekKey);
   const dayIndex = Math.round((dateObj - new Date(weekKey + 'T00:00:00')) / 86400000);
   weekObj.tasks[dayIndex].push({ text, done: false });
+
+  getFutureTaskLog().unshift({ text, targetDate: dateVal, addedOn: toISO(new Date()) });
   save();
 
   confirmEl.style.color = 'var(--viola)';
   confirmEl.textContent = `Added to ${fmtShort(dateObj)} — it'll be waiting there when that day comes round.`;
   confirmEl.style.display = 'block';
   textInput.value = '';
+  renderFutureTaskLog();
 
   renderDays();
 }
@@ -1089,11 +1194,81 @@ function renderAll() {
   renderHabits();
   renderTodos();
   renderDays();
+  renderFutureTaskLog();
+
+  if (state.futureCardCollapsed) {
+    document.getElementById('futureCardBody').style.display = 'none';
+    document.getElementById('futureCardArrow').classList.add('is-collapsed');
+  }
 }
 
 document.getElementById('newHabitInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHabit(); });
 document.getElementById('newTodoInput').addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
 document.getElementById('futureTaskInput').addEventListener('keydown', e => { if (e.key === 'Enter') addFutureTask(); });
+
+function getVaultEntries() {
+  if (!state.vaultEntries) state.vaultEntries = [];
+  return state.vaultEntries;
+}
+
+function openVault() {
+  document.getElementById('vaultOverlay').style.display = 'flex';
+  renderVaultList();
+}
+
+function closeVault() {
+  document.getElementById('vaultOverlay').style.display = 'none';
+}
+
+function addVaultEntry() {
+  const input = document.getElementById('vaultInput');
+  const text = input.value.trim();
+  if (!text) return;
+  getVaultEntries().unshift({ text, addedOn: toISO(new Date()) });
+  save();
+  input.value = '';
+  renderVaultList();
+}
+
+function renderVaultList() {
+  const list = document.getElementById('vaultList');
+  const entries = getVaultEntries();
+  list.innerHTML = '';
+  if (!entries.length) {
+    list.innerHTML = '<div class="vault-empty">Nothing sitting here right now.</div>';
+    return;
+  }
+  entries.forEach((entry, idx) => {
+    const row = document.createElement('div');
+    row.className = 'vault-entry';
+    const dateObj = new Date(entry.addedOn + 'T00:00:00');
+    const dateRow = document.createElement('div');
+    dateRow.className = 'vault-entry-date';
+    const dateLabel = document.createElement('span');
+    dateLabel.textContent = fmtShort(dateObj);
+    const del = document.createElement('button');
+    del.className = 'vault-entry-del';
+    del.textContent = '✕';
+    del.title = 'Remove for good';
+    del.addEventListener('click', (e) => {
+      e.stopPropagation();
+      entries.splice(idx, 1);
+      save();
+      renderVaultList();
+    });
+    dateRow.appendChild(dateLabel);
+    dateRow.appendChild(del);
+    row.appendChild(dateRow);
+
+    const textEl = document.createElement('div');
+    textEl.className = 'vault-entry-text';
+    textEl.textContent = entry.text;
+    row.appendChild(textEl);
+
+    row.addEventListener('click', () => row.classList.toggle('is-revealed'));
+    list.appendChild(row);
+  });
+}
 
 function openBackupModal() {
   document.getElementById('backupOverlay').style.display = 'flex';
