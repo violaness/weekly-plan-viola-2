@@ -1296,7 +1296,7 @@ function addIdeaNote() {
     id: 'n' + Date.now() + Math.floor(Math.random() * 1000),
     text: '',
     x, y,
-    width: 160, height: 110,
+    width: 140, height: 140,
     color: IDEA_COLORS[Math.floor(Math.random() * IDEA_COLORS.length)],
     rot: Math.round((Math.random() * 6 - 3) * 10) / 10
   };
@@ -1325,24 +1325,24 @@ function deleteIdeaNote(id) {
 }
 
 function makeNoteResizable(el, handle, note) {
-  let startX, startY, origW, origH, resizing = false;
+  let startX, startY, origSize, resizing = false;
 
   handle.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     resizing = true;
     startX = e.clientX; startY = e.clientY;
-    origW = note.width || 160; origH = note.height || 110;
+    origSize = note.width || note.size || 140;
     handle.setPointerCapture(e.pointerId);
   });
 
   handle.addEventListener('pointermove', (e) => {
     if (!resizing) return;
-    const newW = Math.min(420, Math.max(100, origW + (e.clientX - startX)));
-    const newH = Math.min(420, Math.max(90, origH + (e.clientY - startY)));
-    note.width = newW;
-    note.height = newH;
-    el.style.width = newW + 'px';
-    el.style.height = newH + 'px';
+    const delta = ((e.clientX - startX) + (e.clientY - startY)) / 2;
+    const newSize = Math.min(400, Math.max(100, Math.round(origSize + delta)));
+    note.width = newSize;
+    note.height = newSize;
+    el.style.width = newSize + 'px';
+    el.style.height = newSize + 'px';
   });
 
   handle.addEventListener('pointerup', () => {
@@ -1394,8 +1394,11 @@ function renderIdeaBoard() {
   }
 
   notes.forEach(note => {
-    if (!note.width) note.width = 160;
-    if (!note.height) note.height = 110;
+    if (!note.width || !note.height || note.width !== note.height) {
+      const size = Math.max(note.width || 140, note.height || 140);
+      note.width = size;
+      note.height = size;
+    }
     const el = document.createElement('div');
     el.className = 'idea-note';
     el.dataset.noteId = note.id;
