@@ -50,6 +50,7 @@
     cursor: pointer; z-index: 11;
   }
   .vault-btn:hover { background: rgba(255,255,255,0.28); color: #fff; }
+  .idea-btn { right: 48px; }
   .week-nav { display: flex; flex-direction: column; gap: 6px; }
   .picker-label { color: rgba(255,255,255,0.75); font-size: 0.72rem; }
   .week-nav-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
@@ -301,6 +302,40 @@
   .vault-entry.is-revealed .vault-entry-text { filter: none; user-select: text; }
   .vault-entry-del { background: none; border: none; color: var(--muted); font-size: 0.8rem; cursor: pointer; padding: 2px 4px; }
   .vault-empty { font-size: 0.8rem; color: var(--muted); font-style: italic; text-align: center; padding: 10px 0; }
+
+  /* Idea board */
+  .idea-overlay { align-items: stretch; justify-content: stretch; padding: 12px; }
+  .idea-board-card {
+    background: var(--cream); border-radius: var(--radius); box-shadow: var(--shadow);
+    width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;
+  }
+  .idea-board-header {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+    padding: 14px 16px 6px;
+  }
+  .idea-board-header h3 { margin: 0; font-size: 1.05rem; }
+  .idea-canvas-wrap { flex: 1; overflow: auto; margin: 8px 12px 12px; border-radius: 10px; background: #fdfcf8; border: 1px solid var(--line); }
+  .idea-canvas { position: relative; width: 1500px; height: 1100px; }
+  .idea-note {
+    position: absolute; width: 160px; min-height: 110px; border-radius: 8px; padding: 10px 10px 8px;
+    box-shadow: 0 3px 8px rgba(5,39,11,0.18); cursor: grab; touch-action: none;
+    display: flex; flex-direction: column;
+  }
+  .idea-note.is-dragging { cursor: grabbing; z-index: 20; box-shadow: 0 8px 18px rgba(5,39,11,0.3); }
+  .idea-note-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 4px; margin-bottom: 4px; }
+  .idea-note-colors { display: flex; gap: 3px; }
+  .idea-color-dot {
+    width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid rgba(0,0,0,0.15); cursor: pointer; flex-shrink: 0;
+  }
+  .idea-note-del { background: none; border: none; color: rgba(0,0,0,0.4); font-size: 0.85rem; cursor: pointer; padding: 0 2px; flex-shrink: 0; }
+  .idea-note textarea {
+    flex: 1; width: 100%; border: none; background: transparent; resize: none;
+    font-family: 'Special Elite', cursive; font-size: 0.8rem; color: var(--ink); line-height: 1.4em;
+  }
+  .idea-canvas-empty {
+    position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%);
+    color: var(--muted); font-size: 0.85rem; font-style: italic; text-align: center; width: 260px;
+  }
 </style>
 
 </head>
@@ -308,6 +343,7 @@
 
 <header class="app-header">
   <button class="vault-btn" onclick="openVault()" title="Private space" aria-label="Private space">🔒</button>
+  <button class="vault-btn idea-btn" onclick="openIdeaBoard()" title="Idea board" aria-label="Idea board">💭</button>
   <h1>Violaness — Weekly Plan</h1>
   <div class="week-nav">
     <div class="week-nav-row">
@@ -422,6 +458,22 @@
     <button class="btn modal-btn" onclick="addVaultEntry()">Put this down</button>
     <div id="vaultList" class="vault-list"></div>
     <button class="btn modal-btn ghost" onclick="closeVault()">Close</button>
+  </div>
+</div>
+
+<div id="ideaOverlay" class="modal-overlay idea-overlay" style="display:none;">
+  <div class="idea-board-card">
+    <div class="idea-board-header">
+      <h3>💭 Idea Board</h3>
+      <div>
+        <button class="btn modal-btn" style="width:auto; margin:0 8px 0 0; padding:0 14px;" onclick="addIdeaNote()">+ New idea</button>
+        <button class="btn modal-btn ghost" style="width:auto; margin:0; padding:0 14px;" onclick="closeIdeaBoard()">Close</button>
+      </div>
+    </div>
+    <p class="modal-desc" style="padding:0 16px;">Drop ideas anywhere, drag them wherever feels right, colour them however makes sense to you. Nothing here needs ordering.</p>
+    <div class="idea-canvas-wrap" id="ideaCanvasWrap">
+      <div class="idea-canvas" id="ideaCanvas"></div>
+    </div>
   </div>
 </div>
 
@@ -1209,6 +1261,140 @@ document.getElementById('futureTaskInput').addEventListener('keydown', e => { if
 function getVaultEntries() {
   if (!state.vaultEntries) state.vaultEntries = [];
   return state.vaultEntries;
+}
+
+const IDEA_COLORS = ['#F9E79F', '#A9DFBF', '#AED6F1', '#F5B7B1', '#D7BDE2'];
+
+function getIdeaNotes() {
+  if (!state.ideaNotes) state.ideaNotes = [];
+  return state.ideaNotes;
+}
+
+function openIdeaBoard() {
+  document.getElementById('ideaOverlay').style.display = 'flex';
+  renderIdeaBoard();
+}
+
+function closeIdeaBoard() {
+  document.getElementById('ideaOverlay').style.display = 'none';
+}
+
+function addIdeaNote() {
+  const wrap = document.getElementById('ideaCanvasWrap');
+  const notes = getIdeaNotes();
+  const x = wrap.scrollLeft + 60 + Math.random() * 80;
+  const y = wrap.scrollTop + 60 + Math.random() * 80;
+  const note = {
+    id: 'n' + Date.now() + Math.floor(Math.random() * 1000),
+    text: '',
+    x, y,
+    color: IDEA_COLORS[Math.floor(Math.random() * IDEA_COLORS.length)],
+    rot: Math.round((Math.random() * 6 - 3) * 10) / 10
+  };
+  notes.push(note);
+  save();
+  renderIdeaBoard();
+  setTimeout(() => {
+    const ta = document.querySelector(`[data-note-id="${note.id}"] textarea`);
+    if (ta) ta.focus();
+  }, 30);
+}
+
+function cycleNoteColor(note) {
+  const idx = IDEA_COLORS.indexOf(note.color);
+  note.color = IDEA_COLORS[(idx + 1) % IDEA_COLORS.length];
+  save();
+  renderIdeaBoard();
+}
+
+function deleteIdeaNote(id) {
+  const notes = getIdeaNotes();
+  const idx = notes.findIndex(n => n.id === id);
+  if (idx > -1) notes.splice(idx, 1);
+  save();
+  renderIdeaBoard();
+}
+
+function makeNoteDraggable(el, note) {
+  let startX, startY, origX, origY, dragging = false;
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target.tagName === 'TEXTAREA' || e.target.classList.contains('idea-color-dot') || e.target.classList.contains('idea-note-del')) return;
+    dragging = true;
+    el.classList.add('is-dragging');
+    startX = e.clientX; startY = e.clientY;
+    origX = note.x; origY = note.y;
+    el.setPointerCapture(e.pointerId);
+  });
+
+  el.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    note.x = origX + (e.clientX - startX);
+    note.y = origY + (e.clientY - startY);
+    el.style.left = note.x + 'px';
+    el.style.top = note.y + 'px';
+  });
+
+  el.addEventListener('pointerup', () => {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('is-dragging');
+    save();
+  });
+}
+
+function renderIdeaBoard() {
+  const canvas = document.getElementById('ideaCanvas');
+  const notes = getIdeaNotes();
+  canvas.innerHTML = '';
+
+  if (!notes.length) {
+    const empty = document.createElement('div');
+    empty.className = 'idea-canvas-empty';
+    empty.textContent = 'Nothing here yet — tap "+ New idea" to drop the first one.';
+    canvas.appendChild(empty);
+    return;
+  }
+
+  notes.forEach(note => {
+    const el = document.createElement('div');
+    el.className = 'idea-note';
+    el.dataset.noteId = note.id;
+    el.style.left = note.x + 'px';
+    el.style.top = note.y + 'px';
+    el.style.background = note.color;
+    el.style.transform = `rotate(${note.rot}deg)`;
+
+    const top = document.createElement('div');
+    top.className = 'idea-note-top';
+
+    const colors = document.createElement('div');
+    colors.className = 'idea-note-colors';
+    const dot = document.createElement('div');
+    dot.className = 'idea-color-dot';
+    dot.style.background = IDEA_COLORS[(IDEA_COLORS.indexOf(note.color) + 1) % IDEA_COLORS.length];
+    dot.title = 'Change colour';
+    dot.addEventListener('click', (e) => { e.stopPropagation(); cycleNoteColor(note); });
+    colors.appendChild(dot);
+    top.appendChild(colors);
+
+    const del = document.createElement('button');
+    del.className = 'idea-note-del';
+    del.textContent = '✕';
+    del.addEventListener('click', (e) => { e.stopPropagation(); deleteIdeaNote(note.id); });
+    top.appendChild(del);
+    el.appendChild(top);
+
+    const ta = document.createElement('textarea');
+    ta.value = note.text;
+    ta.placeholder = 'an idea…';
+    ta.addEventListener('change', () => { note.text = ta.value; save(); });
+    ta.addEventListener('pointerdown', (e) => e.stopPropagation());
+    el.appendChild(ta);
+
+    makeNoteDraggable(el, note);
+    canvas.appendChild(el);
+  });
 }
 
 function openVault() {
