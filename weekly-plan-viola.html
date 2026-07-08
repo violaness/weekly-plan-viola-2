@@ -1523,11 +1523,23 @@ function setupDrawingCanvas(canvasEl, note) {
   redrawCanvas(canvasEl, note);
 
   let currentStroke = null;
-  let drawing = false;
+  let activePointerId = null;
+
+  function endStroke() {
+    if (currentStroke && currentStroke.length > 1) {
+      if (!note.strokes) note.strokes = [];
+      note.strokes.push(currentStroke);
+      drawingRedoStacks.set(note.id, []);
+      save();
+    }
+    currentStroke = null;
+    activePointerId = null;
+  }
 
   canvasEl.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
-    drawing = true;
+    if (activePointerId !== null) return; // already drawing with another touch — ignore extra fingers/palm
+    activePointerId = e.pointerId;
     currentStroke = [];
     const rect = canvasEl.getBoundingClientRect();
     currentStroke.push({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
@@ -1535,7 +1547,7 @@ function setupDrawingCanvas(canvasEl, note) {
   });
 
   canvasEl.addEventListener('pointermove', (e) => {
-    if (!drawing) return;
+    if (e.pointerId !== activePointerId) return;
     const rect = canvasEl.getBoundingClientRect();
     currentStroke.push({ x: (e.clientX - rect.left) / rect.width, y: (e.clientY - rect.top) / rect.height });
     redrawCanvas(canvasEl, note);
@@ -1553,16 +1565,15 @@ function setupDrawingCanvas(canvasEl, note) {
     ctx.stroke();
   });
 
-  canvasEl.addEventListener('pointerup', () => {
-    if (!drawing) return;
-    drawing = false;
-    if (currentStroke && currentStroke.length > 1) {
-      if (!note.strokes) note.strokes = [];
-      note.strokes.push(currentStroke);
-      drawingRedoStacks.set(note.id, []);
-      save();
-    }
+  canvasEl.addEventListener('pointerup', (e) => {
+    if (e.pointerId !== activePointerId) return;
+    endStroke();
+  });
+
+  canvasEl.addEventListener('pointercancel', (e) => {
+    if (e.pointerId !== activePointerId) return;
     currentStroke = null;
+    activePointerId = null;
   });
 }
 
