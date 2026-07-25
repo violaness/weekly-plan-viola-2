@@ -144,6 +144,10 @@
   .todo-text { flex: 1; font-size: 0.85rem; }
   .todo-text.done { text-decoration: line-through; color: var(--muted); }
   .todo-del { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.9rem; padding: 2px 6px; }
+  .category-select {
+    font-family: 'Special Elite', cursive; font-size: 0.66rem; color: var(--muted); background: var(--line);
+    border: none; border-radius: 6px; padding: 3px 4px; flex-shrink: 0; max-width: 90px;
+  }
   .copy-btn-wrap { margin-bottom: 8px; }
 
   /* Day columns */
@@ -1800,9 +1804,67 @@ function renderIdeaBoard() {
   });
 }
 
+const PACKING_CATEGORIES = ['Clothes', 'Toiletries', 'Electrical', 'Documents', 'Medication', 'Other'];
+
+const CATEGORY_KEYWORDS = {
+  Clothes: ['shirt','t-shirt','tshirt','trouser','jean','sock','underwear','pant','dress','skirt','jumper','sweater','jacket','coat','shoe','boot','sandal','swim','pyjama','pajama','hat','scarf','glove','belt','tie','bra','vest','short','legging','cardigan','hoodie','jumpsuit'],
+  Toiletries: ['toothbrush','toothpaste','shampoo','conditioner','soap','deodorant','razor','shaver','makeup','make-up','skincare','moisturis','moisturiz','sunscreen','sun cream','suncream','contact lens','hairbrush','comb','tampon','pad','flannel','towel','perfume','cologne','nail','floss','wash bag'],
+  Electrical: ['charger','cable','adapt','headphone','earphone','laptop','tablet','camera','battery','batteries','power bank','plug','kindle','phone','earbuds'],
+  Documents: ['passport','ticket','visa','insurance','licence','license','boarding pass','itinerary','reservation','confirmation','id card'],
+  Medication: ['medication','medicine','tablet','pill','prescription','inhaler','vitamin','plaster','first aid','painkiller']
+};
+
+function guessCategory(text) {
+  const lower = text.toLowerCase();
+  for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (words.some(w => lower.includes(w))) return cat;
+  }
+  return 'Other';
+}
+
+function groupByCategory(items) {
+  const groups = {};
+  PACKING_CATEGORIES.forEach(c => { groups[c] = []; });
+  items.forEach((item, idx) => {
+    const cat = PACKING_CATEGORIES.includes(item.category) ? item.category : 'Other';
+    groups[cat].push({ item, idx });
+  });
+  return groups;
+}
+
+function buildCategorySelect(item, onChangeCb) {
+  const select = document.createElement('select');
+  select.className = 'category-select';
+  PACKING_CATEGORIES.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    if ((item.category || 'Other') === cat) opt.selected = true;
+    select.appendChild(opt);
+  });
+  select.addEventListener('click', (e) => e.stopPropagation());
+  select.addEventListener('change', () => {
+    item.category = select.value;
+    save();
+    onChangeCb();
+  });
+  return select;
+}
+
 function ensurePackingData() {
   if (!state.packingTemplates) state.packingTemplates = [];
   if (!state.packingTrips) state.packingTrips = [];
+
+  state.packingTemplates.forEach(tpl => {
+    tpl.items = tpl.items.map(item => {
+      if (typeof item === 'string') return { text: item, category: guessCategory(item) };
+      if (!item.category) item.category = guessCategory(item.text);
+      return item;
+    });
+  });
+  state.packingTrips.forEach(trip => {
+    trip.items.forEach(item => { if (!item.category) item.category = guessCategory(item.text); });
+  });
 }
 
 function getTemplates() { ensurePackingData(); return state.packingTemplates; }
@@ -1879,39 +1941,53 @@ function renderPackingTripView() {
 
   if (!trip.items.length) {
     itemsEl.innerHTML = '<div class="vault-empty">Nothing on this trip\'s list yet.</div>';
+  } else {
+    const groups = groupByCategory(trip.items);
+    PACKING_CATEGORIES.forEach(cat => {
+      const entries = groups[cat];
+      if (!entries.length) return;
+
+      const label = document.createElement('div');
+      label.className = 'day-section-label';
+      label.style.marginTop = '14px';
+      label.textContent = cat;
+      itemsEl.appendChild(label);
+
+      entries.forEach(({ item, idx }) => {
+        const row = document.createElement('div');
+        row.className = 'todo-item';
+
+        const box = document.createElement('div');
+        box.className = 'todo-check' + (item.packed ? ' checked' : '');
+        box.textContent = item.packed ? '✓' : '';
+        box.addEventListener('click', () => {
+          item.packed = !item.packed;
+          save();
+          renderPackingTripView();
+        });
+        row.appendChild(box);
+
+        const text = document.createElement('div');
+        text.className = 'todo-text' + (item.packed ? ' done' : '');
+        text.textContent = item.text;
+        row.appendChild(text);
+
+        row.appendChild(buildCategorySelect(item, renderPackingTripView));
+
+        const del = document.createElement('button');
+        del.className = 'todo-del';
+        del.textContent = '✕';
+        del.addEventListener('click', () => {
+          trip.items.splice(idx, 1);
+          save();
+          renderPackingTripView();
+        });
+        row.appendChild(del);
+
+        itemsEl.appendChild(row);
+      });
+    });
   }
-
-  trip.items.forEach((item, idx) => {
-    const row = document.createElement('div');
-    row.className = 'todo-item';
-
-    const box = document.createElement('div');
-    box.className = 'todo-check' + (item.packed ? ' checked' : '');
-    box.textContent = item.packed ? '✓' : '';
-    box.addEventListener('click', () => {
-      item.packed = !item.packed;
-      save();
-      renderPackingTripView();
-    });
-    row.appendChild(box);
-
-    const text = document.createElement('div');
-    text.className = 'todo-text' + (item.packed ? ' done' : '');
-    text.textContent = item.text;
-    row.appendChild(text);
-
-    const del = document.createElement('button');
-    del.className = 'todo-del';
-    del.textContent = '✕';
-    del.addEventListener('click', () => {
-      trip.items.splice(idx, 1);
-      save();
-      renderPackingTripView();
-    });
-    row.appendChild(del);
-
-    itemsEl.appendChild(row);
-  });
 
   const total = trip.items.length;
   const packed = trip.items.filter(i => i.packed).length;
@@ -1925,7 +2001,7 @@ function addPackingTripItem() {
   const input = document.getElementById('packingItemInput');
   const text = input.value.trim();
   if (!trip || !text) return;
-  trip.items.push({ text, packed: false });
+  trip.items.push({ text, packed: false, category: guessCategory(text) });
   save();
   input.value = '';
   renderPackingTripView();
@@ -1984,27 +2060,40 @@ function renderNewTripTemplateItems() {
   label.textContent = "Tick what you need this time";
   container.appendChild(label);
 
-  tpl.items.forEach(itemText => {
-    const row = document.createElement('div');
-    row.className = 'todo-item';
-    row.style.cursor = 'pointer';
+  const groups = groupByCategory(tpl.items);
+  PACKING_CATEGORIES.forEach(cat => {
+    const entries = groups[cat];
+    if (!entries.length) return;
 
-    const box = document.createElement('div');
-    box.className = 'todo-check';
-    box.dataset.itemText = itemText;
+    const catLabel = document.createElement('div');
+    catLabel.className = 'day-section-label';
+    catLabel.style.marginTop = '10px';
+    catLabel.textContent = cat;
+    container.appendChild(catLabel);
 
-    const text = document.createElement('div');
-    text.className = 'todo-text';
-    text.textContent = itemText;
+    entries.forEach(({ item }) => {
+      const row = document.createElement('div');
+      row.className = 'todo-item';
+      row.style.cursor = 'pointer';
 
-    row.addEventListener('click', () => {
-      box.classList.toggle('checked');
-      box.textContent = box.classList.contains('checked') ? '✓' : '';
+      const box = document.createElement('div');
+      box.className = 'todo-check';
+      box.dataset.itemText = item.text;
+      box.dataset.itemCategory = item.category || 'Other';
+
+      const text = document.createElement('div');
+      text.className = 'todo-text';
+      text.textContent = item.text;
+
+      row.addEventListener('click', () => {
+        box.classList.toggle('checked');
+        box.textContent = box.classList.contains('checked') ? '✓' : '';
+      });
+
+      row.appendChild(box);
+      row.appendChild(text);
+      container.appendChild(row);
     });
-
-    row.appendChild(box);
-    row.appendChild(text);
-    container.appendChild(row);
   });
 }
 
@@ -2012,7 +2101,7 @@ function createTripFromSelection() {
   const name = document.getElementById('newTripName').value.trim() || 'Trip';
   const dateVal = document.getElementById('newTripDate').value || toISO(new Date());
   const checkedBoxes = document.querySelectorAll('#newTripTemplateItems .todo-check.checked');
-  const items = Array.from(checkedBoxes).map(box => ({ text: box.dataset.itemText, packed: false }));
+  const items = Array.from(checkedBoxes).map(box => ({ text: box.dataset.itemText, packed: false, category: box.dataset.itemCategory || 'Other' }));
 
   const trip = {
     id: 't' + Date.now(),
@@ -2101,24 +2190,41 @@ function renderTemplateItems() {
   }
   if (!tpl.items.length) {
     itemsEl.innerHTML = '<div class="vault-empty">No items in this template yet.</div>';
+    return;
   }
-  tpl.items.forEach((itemText, idx) => {
-    const row = document.createElement('div');
-    row.className = 'future-log-item';
-    const label = document.createElement('div');
-    label.className = 'log-main';
-    label.textContent = itemText;
-    row.appendChild(label);
-    const del = document.createElement('button');
-    del.className = 'mini-del';
-    del.textContent = '✕';
-    del.addEventListener('click', () => {
-      tpl.items.splice(idx, 1);
-      save();
-      renderTemplateItems();
+
+  const groups = groupByCategory(tpl.items);
+  PACKING_CATEGORIES.forEach(cat => {
+    const entries = groups[cat];
+    if (!entries.length) return;
+
+    const catLabel = document.createElement('div');
+    catLabel.className = 'day-section-label';
+    catLabel.style.marginTop = '14px';
+    catLabel.textContent = cat;
+    itemsEl.appendChild(catLabel);
+
+    entries.forEach(({ item, idx }) => {
+      const row = document.createElement('div');
+      row.className = 'future-log-item';
+      const label = document.createElement('div');
+      label.className = 'log-main';
+      label.textContent = item.text;
+      row.appendChild(label);
+
+      row.appendChild(buildCategorySelect(item, renderTemplateItems));
+
+      const del = document.createElement('button');
+      del.className = 'mini-del';
+      del.textContent = '✕';
+      del.addEventListener('click', () => {
+        tpl.items.splice(idx, 1);
+        save();
+        renderTemplateItems();
+      });
+      row.appendChild(del);
+      itemsEl.appendChild(row);
     });
-    row.appendChild(del);
-    itemsEl.appendChild(row);
   });
 }
 
@@ -2128,7 +2234,7 @@ function addTemplateItem() {
   const text = input.value.trim();
   if (!tpl) { alert('Create a template first with "+ New".'); return; }
   if (!text) return;
-  tpl.items.push(text);
+  tpl.items.push({ text, category: guessCategory(text) });
   save();
   input.value = '';
   renderTemplateItems();
