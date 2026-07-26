@@ -469,6 +469,24 @@
   <button class="footer-link" onclick="openBackupModal()">Back up &amp; restore</button>
 </footer>
 
+<div id="genericPromptOverlay" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <h3 id="genericPromptTitle">Name this:</h3>
+    <input type="text" id="genericPromptInput" class="vault-input" style="min-height:auto;">
+    <button class="btn modal-btn" onclick="resolveGenericPrompt(true)">OK</button>
+    <button class="btn modal-btn ghost" onclick="resolveGenericPrompt(false)">Cancel</button>
+  </div>
+</div>
+
+<div id="genericConfirmOverlay" class="modal-overlay" style="display:none;">
+  <div class="modal-card">
+    <h3>Are you sure?</h3>
+    <p class="modal-desc" id="genericConfirmMessage"></p>
+    <button class="btn modal-btn" style="background:#b5443c;" onclick="resolveGenericConfirm(true)">Yes, delete</button>
+    <button class="btn modal-btn ghost" onclick="resolveGenericConfirm(false)">Cancel</button>
+  </div>
+</div>
+
 <div id="backupOverlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeBackupModal()">
   <div class="modal-card">
     <h3>Back up &amp; restore</h3>
@@ -494,53 +512,28 @@
 <div id="packingOverlay" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closePacking()">
   <div class="modal-card packing-card">
     <h3>🧳 Packing Lists</h3>
+    <p class="modal-desc">Pick a list below. To start a new trip, duplicate an existing list — everything comes across already included, so you just remove the couple of things you don't need this time.</p>
 
-    <div id="packingTripView">
-      <p class="modal-desc">Pick a trip, or start a new one from one of your saved templates.</p>
-      <div class="idea-board-selector-row" style="padding:0;">
-        <select id="packingTripSelect" class="idea-board-select" onchange="switchPackingTrip(this.value)"></select>
-      </div>
-      <div class="future-task-row" style="margin-top:10px;">
-        <button class="btn modal-btn" onclick="openNewTripFlow()">+ New trip</button>
-        <button class="btn modal-btn ghost" onclick="openTemplateManager()">📋 Templates</button>
-        <button class="btn modal-btn ghost" onclick="deleteCurrentTrip()">✕ Delete trip</button>
-      </div>
-      <div class="progress-bar" style="margin-top:14px;"><div class="fill" id="packingTripFill" style="width:0%; background:var(--viola);"></div></div>
-      <div class="future-task-confirm" id="packingTripPct" style="text-align:right;"></div>
-      <div id="packingTripItems" style="margin-top:6px;"></div>
-      <div class="add-row" style="margin-top:10px;">
-        <input type="text" id="packingItemInput" placeholder="add an item just for this trip…">
-        <button class="btn" onclick="addPackingTripItem()">Add</button>
-      </div>
-      <button class="btn modal-btn ghost" onclick="closePacking()" style="margin-top:14px;">Close</button>
+    <div class="idea-board-selector-row" style="padding:0;">
+      <select id="packingListSelect" class="idea-board-select" onchange="switchPackingList(this.value)"></select>
+    </div>
+    <div class="future-task-row" style="margin-top:10px;">
+      <button class="btn modal-btn" onclick="promptNewList()">+ New list</button>
+      <button class="btn modal-btn blue" onclick="duplicateCurrentList()">⧉ Duplicate this list</button>
+      <button class="btn modal-btn ghost" onclick="deleteCurrentList()">✕ Delete this list</button>
     </div>
 
-    <div id="packingNewTripView" style="display:none;">
-      <div class="day-section-label">Trip name</div>
-      <input type="text" id="newTripName" class="vault-input" style="min-height:auto; margin-bottom:10px;" placeholder="e.g. Cornwall">
-      <div class="day-section-label">Date (optional)</div>
-      <input type="date" id="newTripDate" class="idea-board-select" style="width:100%; margin-bottom:10px;">
-      <div class="day-section-label">Start from a template</div>
-      <select id="newTripTemplateSelect" class="idea-board-select" onchange="renderNewTripTemplateItems()" style="width:100%; margin-bottom:10px;"></select>
-      <div id="newTripTemplateItems"></div>
-      <button class="btn modal-btn" onclick="createTripFromSelection()">Create this trip's checklist</button>
-      <button class="btn modal-btn ghost" onclick="cancelNewTripFlow()">Cancel</button>
-    </div>
+    <div class="day-section-label" style="margin-top:14px;">Trip date</div>
+    <input type="date" id="packingListDate" class="idea-board-select" style="width:100%;" onchange="setCurrentListDate(this.value)">
 
-    <div id="packingTemplateView" style="display:none;">
-      <p class="modal-desc">Templates are your reusable master lists — build them up once, then pick what applies each time you travel.</p>
-      <div class="idea-board-selector-row" style="padding:0;">
-        <select id="templateSelect" class="idea-board-select" onchange="switchTemplate(this.value)"></select>
-        <button class="btn modal-btn" style="width:auto; margin:0; padding:0 12px;" onclick="promptNewTemplate()">+ New</button>
-        <button class="btn modal-btn ghost" style="width:auto; margin:0; padding:0 12px;" onclick="deleteCurrentTemplate()">✕</button>
-      </div>
-      <div id="templateItems" style="margin-top:10px;"></div>
-      <div class="add-row" style="margin-top:10px;">
-        <input type="text" id="templateItemInput" placeholder="add item to this template…">
-        <button class="btn" onclick="addTemplateItem()">Add</button>
-      </div>
-      <button class="btn modal-btn ghost" onclick="closeTemplateManager()" style="margin-top:14px;">Back to trips</button>
+    <div class="progress-bar" style="margin-top:14px;"><div class="fill" id="packingListFill" style="width:0%; background:var(--viola);"></div></div>
+    <div class="future-task-confirm" id="packingListPct" style="text-align:right;"></div>
+    <div id="packingListItems" style="margin-top:6px;"></div>
+    <div class="add-row" style="margin-top:10px;">
+      <input type="text" id="packingItemInput" placeholder="add an item…">
+      <button class="btn" onclick="addPackingItem()">Add</button>
     </div>
+    <button class="btn modal-btn ghost" onclick="closePacking()" style="margin-top:14px;">Close</button>
   </div>
 </div>
 
@@ -1431,8 +1424,8 @@ function switchIdeaBoard(id) {
   renderIdeaBoard();
 }
 
-function promptNewBoard() {
-  const name = window.prompt('Name this board:', '');
+async function promptNewBoard() {
+  const name = await appPrompt('Name this board:', '');
   if (name === null) return;
   const trimmed = name.trim() || `Board ${state.ideaBoards.length + 1}`;
   const board = {
@@ -1448,14 +1441,14 @@ function promptNewBoard() {
   renderIdeaBoard();
 }
 
-function deleteCurrentBoard() {
+async function deleteCurrentBoard() {
   ensureIdeaBoardsMigrated();
   if (state.ideaBoards.length <= 1) {
     alert("This is your only board, so it can't be deleted — clear its notes individually instead if you'd like.");
     return;
   }
   const board = getCurrentBoard();
-  const ok = window.confirm(`Delete "${board.name}" and everything on it? This can't be undone.`);
+  const ok = await appConfirm(`Delete "${board.name}" and everything on it? This can't be undone.`);
   if (!ok) return;
   state.ideaBoards = state.ideaBoards.filter(b => b.id !== board.id);
   state.currentIdeaBoardId = state.ideaBoards[0].id;
@@ -1852,97 +1845,118 @@ function buildCategorySelect(item, onChangeCb) {
 }
 
 function ensurePackingData() {
-  if (!state.packingTemplates) state.packingTemplates = [];
-  if (!state.packingTrips) state.packingTrips = [];
-
-  state.packingTemplates.forEach(tpl => {
-    tpl.items = tpl.items.map(item => {
-      if (typeof item === 'string') return { text: item, category: guessCategory(item) };
-      if (!item.category) item.category = guessCategory(item.text);
-      return item;
+  if (!state.packingLists) {
+    state.packingLists = [];
+    (state.packingTemplates || []).forEach(tpl => {
+      state.packingLists.push({
+        id: 'pl' + Date.now() + Math.random().toString(36).slice(2, 7),
+        name: tpl.name,
+        date: toISO(new Date()),
+        items: (tpl.items || []).map(it => {
+          const text = typeof it === 'string' ? it : it.text;
+          const category = typeof it === 'string' ? guessCategory(it) : (it.category || guessCategory(it.text));
+          return { text, packed: false, category };
+        })
+      });
     });
-  });
-  state.packingTrips.forEach(trip => {
-    trip.items.forEach(item => { if (!item.category) item.category = guessCategory(item.text); });
-  });
+    (state.packingTrips || []).forEach(trip => {
+      state.packingLists.push({
+        id: 'pl' + Date.now() + Math.random().toString(36).slice(2, 7),
+        name: trip.name,
+        date: trip.date || toISO(new Date()),
+        items: (trip.items || []).map(it => ({
+          text: it.text, packed: !!it.packed, category: it.category || guessCategory(it.text)
+        }))
+      });
+    });
+    if (state.packingLists.length) state.currentPackingListId = state.packingLists[0].id;
+    delete state.packingTemplates;
+    delete state.packingTrips;
+    delete state.currentPackingTripId;
+    delete state.currentTemplateId;
+    save();
+  }
+  if (state.currentPackingListId && !state.packingLists.find(l => l.id === state.currentPackingListId)) {
+    state.currentPackingListId = state.packingLists.length ? state.packingLists[0].id : null;
+  }
 }
 
-function getTemplates() { ensurePackingData(); return state.packingTemplates; }
-function getTrips() { ensurePackingData(); return state.packingTrips; }
+function getPackingLists() { ensurePackingData(); return state.packingLists; }
 
-function getCurrentTrip() {
+function getCurrentPackingList() {
   ensurePackingData();
-  if (!state.currentPackingTripId && state.packingTrips.length) {
-    state.currentPackingTripId = state.packingTrips[0].id;
+  if (!state.currentPackingListId && state.packingLists.length) {
+    state.currentPackingListId = state.packingLists[0].id;
   }
-  return state.packingTrips.find(t => t.id === state.currentPackingTripId) || null;
-}
-
-function getCurrentTemplate() {
-  ensurePackingData();
-  if (!state.currentTemplateId && state.packingTemplates.length) {
-    state.currentTemplateId = state.packingTemplates[0].id;
-  }
-  return state.packingTemplates.find(t => t.id === state.currentTemplateId) || null;
+  return state.packingLists.find(l => l.id === state.currentPackingListId) || null;
 }
 
 function openPacking() {
   document.getElementById('packingOverlay').style.display = 'flex';
-  document.getElementById('packingTripView').style.display = '';
-  document.getElementById('packingNewTripView').style.display = 'none';
-  document.getElementById('packingTemplateView').style.display = 'none';
-  renderPackingTripView();
+  renderPackingView();
 }
 
 function closePacking() {
   document.getElementById('packingOverlay').style.display = 'none';
 }
 
-function renderPackingTripSelect() {
-  const select = document.getElementById('packingTripSelect');
-  const trips = getTrips();
+function renderPackingSelect() {
+  const select = document.getElementById('packingListSelect');
+  const lists = getPackingLists();
   select.innerHTML = '';
-  if (!trips.length) {
+  if (!lists.length) {
     const opt = document.createElement('option');
-    opt.textContent = 'No trips yet';
+    opt.textContent = 'No lists yet';
     select.appendChild(opt);
     return;
   }
-  trips.forEach(trip => {
+  lists.forEach(list => {
     const opt = document.createElement('option');
-    opt.value = trip.id;
-    const dateObj = new Date(trip.date + 'T00:00:00');
-    opt.textContent = `${trip.name} — ${fmtShort(dateObj)}`;
-    if (trip.id === state.currentPackingTripId) opt.selected = true;
+    opt.value = list.id;
+    const dateObj = new Date(list.date + 'T00:00:00');
+    opt.textContent = `${list.name} — ${fmtShort(dateObj)}`;
+    if (list.id === state.currentPackingListId) opt.selected = true;
     select.appendChild(opt);
   });
 }
 
-function switchPackingTrip(id) {
-  state.currentPackingTripId = id;
+function switchPackingList(id) {
+  state.currentPackingListId = id;
   save();
-  renderPackingTripView();
+  renderPackingView();
 }
 
-function renderPackingTripView() {
-  renderPackingTripSelect();
-  const trip = getCurrentTrip();
-  const itemsEl = document.getElementById('packingTripItems');
-  const fill = document.getElementById('packingTripFill');
-  const pctEl = document.getElementById('packingTripPct');
+function setCurrentListDate(dateVal) {
+  const list = getCurrentPackingList();
+  if (!list || !dateVal) return;
+  list.date = dateVal;
+  save();
+  renderPackingSelect();
+}
+
+function renderPackingView() {
+  renderPackingSelect();
+  const list = getCurrentPackingList();
+  const itemsEl = document.getElementById('packingListItems');
+  const fill = document.getElementById('packingListFill');
+  const pctEl = document.getElementById('packingListPct');
+  const dateInput = document.getElementById('packingListDate');
   itemsEl.innerHTML = '';
 
-  if (!trip) {
-    itemsEl.innerHTML = '<div class="vault-empty">No trips yet — tap "+ New trip" to start one.</div>';
+  if (!list) {
+    itemsEl.innerHTML = '<div class="vault-empty">No lists yet — tap "+ New list" to start one.</div>';
     fill.style.width = '0%';
     pctEl.textContent = '';
+    dateInput.value = '';
     return;
   }
 
-  if (!trip.items.length) {
-    itemsEl.innerHTML = '<div class="vault-empty">Nothing on this trip\'s list yet.</div>';
+  dateInput.value = list.date;
+
+  if (!list.items.length) {
+    itemsEl.innerHTML = '<div class="vault-empty">Nothing on this list yet.</div>';
   } else {
-    const groups = groupByCategory(trip.items);
+    const groups = groupByCategory(list.items);
     PACKING_CATEGORIES.forEach(cat => {
       const entries = groups[cat];
       if (!entries.length) return;
@@ -1963,7 +1977,7 @@ function renderPackingTripView() {
         box.addEventListener('click', () => {
           item.packed = !item.packed;
           save();
-          renderPackingTripView();
+          renderPackingView();
         });
         row.appendChild(box);
 
@@ -1972,15 +1986,15 @@ function renderPackingTripView() {
         text.textContent = item.text;
         row.appendChild(text);
 
-        row.appendChild(buildCategorySelect(item, renderPackingTripView));
+        row.appendChild(buildCategorySelect(item, renderPackingView));
 
         const del = document.createElement('button');
         del.className = 'todo-del';
         del.textContent = '✕';
         del.addEventListener('click', () => {
-          trip.items.splice(idx, 1);
+          list.items.splice(idx, 1);
           save();
-          renderPackingTripView();
+          renderPackingView();
         });
         row.appendChild(del);
 
@@ -1989,255 +2003,62 @@ function renderPackingTripView() {
     });
   }
 
-  const total = trip.items.length;
-  const packed = trip.items.filter(i => i.packed).length;
+  const total = list.items.length;
+  const packed = list.items.filter(i => i.packed).length;
   const pct = total ? Math.round((packed / total) * 100) : 0;
   fill.style.width = pct + '%';
   pctEl.textContent = total ? `${packed} of ${total} packed — ${pct}%` : '';
 }
 
-function addPackingTripItem() {
-  const trip = getCurrentTrip();
+function addPackingItem() {
+  const list = getCurrentPackingList();
   const input = document.getElementById('packingItemInput');
   const text = input.value.trim();
-  if (!trip || !text) return;
-  trip.items.push({ text, packed: false, category: guessCategory(text) });
+  if (!list || !text) return;
+  list.items.push({ text, packed: false, category: guessCategory(text) });
   save();
   input.value = '';
-  renderPackingTripView();
+  renderPackingView();
 }
 
-function deleteCurrentTrip() {
-  const trip = getCurrentTrip();
-  if (!trip) return;
-  const ok = window.confirm(`Delete "${trip.name}"? This can't be undone.`);
-  if (!ok) return;
-  state.packingTrips = state.packingTrips.filter(t => t.id !== trip.id);
-  state.currentPackingTripId = state.packingTrips.length ? state.packingTrips[0].id : null;
-  save();
-  renderPackingTripView();
-}
-
-function openNewTripFlow() {
-  document.getElementById('packingTripView').style.display = 'none';
-  document.getElementById('packingNewTripView').style.display = '';
-  document.getElementById('newTripName').value = '';
-  document.getElementById('newTripDate').value = '';
-
-  const select = document.getElementById('newTripTemplateSelect');
-  select.innerHTML = '';
-  const blankOpt = document.createElement('option');
-  blankOpt.value = '';
-  blankOpt.textContent = '— start with a blank list —';
-  select.appendChild(blankOpt);
-  getTemplates().forEach(tpl => {
-    const opt = document.createElement('option');
-    opt.value = tpl.id;
-    opt.textContent = tpl.name;
-    select.appendChild(opt);
-  });
-  renderNewTripTemplateItems();
-}
-
-function cancelNewTripFlow() {
-  document.getElementById('packingNewTripView').style.display = 'none';
-  document.getElementById('packingTripView').style.display = '';
-}
-
-function renderNewTripTemplateItems() {
-  const select = document.getElementById('newTripTemplateSelect');
-  const container = document.getElementById('newTripTemplateItems');
-  container.innerHTML = '';
-  const tplId = select.value;
-  if (!tplId) return;
-  const tpl = getTemplates().find(t => t.id === tplId);
-  if (!tpl || !tpl.items.length) {
-    container.innerHTML = '<div class="vault-empty">This template has no items yet.</div>';
-    return;
-  }
-  const label = document.createElement('div');
-  label.className = 'day-section-label';
-  label.textContent = "Tick what you need this time";
-  container.appendChild(label);
-
-  const groups = groupByCategory(tpl.items);
-  PACKING_CATEGORIES.forEach(cat => {
-    const entries = groups[cat];
-    if (!entries.length) return;
-
-    const catLabel = document.createElement('div');
-    catLabel.className = 'day-section-label';
-    catLabel.style.marginTop = '10px';
-    catLabel.textContent = cat;
-    container.appendChild(catLabel);
-
-    entries.forEach(({ item }) => {
-      const row = document.createElement('div');
-      row.className = 'todo-item';
-      row.style.cursor = 'pointer';
-
-      const box = document.createElement('div');
-      box.className = 'todo-check';
-      box.dataset.itemText = item.text;
-      box.dataset.itemCategory = item.category || 'Other';
-
-      const text = document.createElement('div');
-      text.className = 'todo-text';
-      text.textContent = item.text;
-
-      row.addEventListener('click', () => {
-        box.classList.toggle('checked');
-        box.textContent = box.classList.contains('checked') ? '✓' : '';
-      });
-
-      row.appendChild(box);
-      row.appendChild(text);
-      container.appendChild(row);
-    });
-  });
-}
-
-function createTripFromSelection() {
-  const name = document.getElementById('newTripName').value.trim() || 'Trip';
-  const dateVal = document.getElementById('newTripDate').value || toISO(new Date());
-  const checkedBoxes = document.querySelectorAll('#newTripTemplateItems .todo-check.checked');
-  const items = Array.from(checkedBoxes).map(box => ({ text: box.dataset.itemText, packed: false, category: box.dataset.itemCategory || 'Other' }));
-
-  const trip = {
-    id: 't' + Date.now(),
-    name,
-    date: dateVal,
-    items
-  };
-  getTrips().push(trip);
-  state.currentPackingTripId = trip.id;
-  save();
-
-  document.getElementById('packingNewTripView').style.display = 'none';
-  document.getElementById('packingTripView').style.display = '';
-  renderPackingTripView();
-}
-
-function openTemplateManager() {
-  document.getElementById('packingTripView').style.display = 'none';
-  document.getElementById('packingTemplateView').style.display = '';
-  renderTemplateSelect();
-  renderTemplateItems();
-}
-
-function closeTemplateManager() {
-  document.getElementById('packingTemplateView').style.display = 'none';
-  document.getElementById('packingTripView').style.display = '';
-  renderPackingTripView();
-}
-
-function renderTemplateSelect() {
-  const select = document.getElementById('templateSelect');
-  const templates = getTemplates();
-  select.innerHTML = '';
-  if (!templates.length) {
-    const opt = document.createElement('option');
-    opt.textContent = 'No templates yet';
-    select.appendChild(opt);
-    return;
-  }
-  templates.forEach(tpl => {
-    const opt = document.createElement('option');
-    opt.value = tpl.id;
-    opt.textContent = tpl.name;
-    if (tpl.id === state.currentTemplateId) opt.selected = true;
-    select.appendChild(opt);
-  });
-}
-
-function switchTemplate(id) {
-  state.currentTemplateId = id;
-  save();
-  renderTemplateItems();
-}
-
-function promptNewTemplate() {
-  const name = window.prompt('Name this packing list template (e.g. "Beach trip", "Concert weekend"):', '');
+async function promptNewList() {
+  const name = await appPrompt('Name this list (e.g. "Cornwall trip", "Beach essentials"):', '');
   if (name === null) return;
-  const trimmed = name.trim() || `Template ${getTemplates().length + 1}`;
-  const tpl = { id: 'tpl' + Date.now(), name: trimmed, items: [] };
-  getTemplates().push(tpl);
-  state.currentTemplateId = tpl.id;
+  const trimmed = name.trim() || `List ${getPackingLists().length + 1}`;
+  const list = { id: 'pl' + Date.now(), name: trimmed, date: toISO(new Date()), items: [] };
+  getPackingLists().push(list);
+  state.currentPackingListId = list.id;
   save();
-  renderTemplateSelect();
-  renderTemplateItems();
+  renderPackingView();
 }
 
-function deleteCurrentTemplate() {
-  const tpl = getCurrentTemplate();
-  if (!tpl) return;
-  const ok = window.confirm(`Delete the "${tpl.name}" template? This can't be undone — existing trips already created from it are unaffected.`);
+async function duplicateCurrentList() {
+  const current = getCurrentPackingList();
+  if (!current) { promptNewList(); return; }
+  const name = await appPrompt('Name for this new list:', current.name);
+  if (name === null) return;
+  const trimmed = name.trim() || `${current.name} copy`;
+  const copy = {
+    id: 'pl' + Date.now(),
+    name: trimmed,
+    date: toISO(new Date()),
+    items: current.items.map(it => ({ text: it.text, packed: false, category: it.category }))
+  };
+  getPackingLists().push(copy);
+  state.currentPackingListId = copy.id;
+  save();
+  renderPackingView();
+}
+
+async function deleteCurrentList() {
+  const list = getCurrentPackingList();
+  if (!list) return;
+  const ok = await appConfirm(`Delete "${list.name}"? This can't be undone.`);
   if (!ok) return;
-  state.packingTemplates = state.packingTemplates.filter(t => t.id !== tpl.id);
-  state.currentTemplateId = state.packingTemplates.length ? state.packingTemplates[0].id : null;
+  state.packingLists = state.packingLists.filter(l => l.id !== list.id);
+  state.currentPackingListId = state.packingLists.length ? state.packingLists[0].id : null;
   save();
-  renderTemplateSelect();
-  renderTemplateItems();
-}
-
-function renderTemplateItems() {
-  const tpl = getCurrentTemplate();
-  const itemsEl = document.getElementById('templateItems');
-  itemsEl.innerHTML = '';
-  if (!tpl) {
-    itemsEl.innerHTML = '<div class="vault-empty">No templates yet — tap "+ New" to build one.</div>';
-    return;
-  }
-  if (!tpl.items.length) {
-    itemsEl.innerHTML = '<div class="vault-empty">No items in this template yet.</div>';
-    return;
-  }
-
-  const groups = groupByCategory(tpl.items);
-  PACKING_CATEGORIES.forEach(cat => {
-    const entries = groups[cat];
-    if (!entries.length) return;
-
-    const catLabel = document.createElement('div');
-    catLabel.className = 'day-section-label';
-    catLabel.style.marginTop = '14px';
-    catLabel.textContent = cat;
-    itemsEl.appendChild(catLabel);
-
-    entries.forEach(({ item, idx }) => {
-      const row = document.createElement('div');
-      row.className = 'future-log-item';
-      const label = document.createElement('div');
-      label.className = 'log-main';
-      label.textContent = item.text;
-      row.appendChild(label);
-
-      row.appendChild(buildCategorySelect(item, renderTemplateItems));
-
-      const del = document.createElement('button');
-      del.className = 'mini-del';
-      del.textContent = '✕';
-      del.addEventListener('click', () => {
-        tpl.items.splice(idx, 1);
-        save();
-        renderTemplateItems();
-      });
-      row.appendChild(del);
-      itemsEl.appendChild(row);
-    });
-  });
-}
-
-function addTemplateItem() {
-  const tpl = getCurrentTemplate();
-  const input = document.getElementById('templateItemInput');
-  const text = input.value.trim();
-  if (!tpl) { alert('Create a template first with "+ New".'); return; }
-  if (!text) return;
-  tpl.items.push({ text, category: guessCategory(text) });
-  save();
-  input.value = '';
-  renderTemplateItems();
+  renderPackingView();
 }
 
 function openVault() {
@@ -2297,6 +2118,36 @@ function renderVaultList() {
     row.addEventListener('click', () => row.classList.toggle('is-revealed'));
     list.appendChild(row);
   });
+}
+
+let _promptResolve = null;
+function appPrompt(title, defaultValue) {
+  return new Promise(resolve => {
+    _promptResolve = resolve;
+    document.getElementById('genericPromptTitle').textContent = title;
+    const input = document.getElementById('genericPromptInput');
+    input.value = defaultValue || '';
+    document.getElementById('genericPromptOverlay').style.display = 'flex';
+    setTimeout(() => { input.focus(); input.select(); }, 50);
+  });
+}
+function resolveGenericPrompt(ok) {
+  document.getElementById('genericPromptOverlay').style.display = 'none';
+  const val = ok ? document.getElementById('genericPromptInput').value : null;
+  if (_promptResolve) { _promptResolve(val); _promptResolve = null; }
+}
+
+let _confirmResolve = null;
+function appConfirm(message) {
+  return new Promise(resolve => {
+    _confirmResolve = resolve;
+    document.getElementById('genericConfirmMessage').textContent = message;
+    document.getElementById('genericConfirmOverlay').style.display = 'flex';
+  });
+}
+function resolveGenericConfirm(ok) {
+  document.getElementById('genericConfirmOverlay').style.display = 'none';
+  if (_confirmResolve) { _confirmResolve(ok); _confirmResolve = null; }
 }
 
 function openBackupModal() {
